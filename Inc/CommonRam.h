@@ -1,0 +1,669 @@
+/*******************************************************************************
+* Filename: CommonRam.h 	                                    	     		   *
+*                                                                              *
+* Description: The header file of CommonRam.c.							           *
+* Author:                                                                      *
+* Date: 															           *
+* Revision:															           *
+*																	           *
+*******************************************************************************/
+
+#include	"KSDsys.h"
+#include	"iCANPlc.h"
+#include	"Para.h"
+////*********** Time delay constant
+//#define PLC_PERIOD  5  //5ms
+//#define FULL_VOLTAGE_ACT_TIME (400/PLC_PERIOD)   //400MS
+
+///*******************************************************************************
+//* 1. DI
+//*******************************************************************************/
+//#define		SWI1_R					0
+//#define		SWI2_R					1
+//#define		SWI3_R					2
+//#define		SWI4_R					3
+//#define		SWI5_R					4
+//#define		SWI6_R					5
+//#define		SWI7_R					6
+//#define		SWI8_R					7
+//#define		DRIVER1_R				8
+//#define		DRIVER2_R				9
+//#define		LOCK_IN		      10
+///*******************************************************************************
+//* 2. DO
+//*******************************************************************************/
+//#define		DRIVER1					0
+//#define		DRIVER2					1
+//#define		LED_Y						2
+//#define		LED_R						3
+//#define		LOCK_OUT				4
+//#if (USER_TYPE == USER_NBRY_QYCC15T_STEER)
+//	#define		QIAN_QING_DRV1	5
+//#endif
+///*******************************************************************************
+//* 3. AI
+//*******************************************************************************/
+//#if ((CTLBOARD_TYPE ==_1236) || (CTLBOARD_TYPE ==_1246))
+//	#define     AD_ThrotPotHigh     0
+//	#define			AD_PropOvCur        1
+//	#define     AD_BrkPotHigh       2
+//	#define			AD_Swi1 						3
+//	#define			AD_V5out 						4
+//	#define     AD_V12out           5
+//	#define     AD_V12_5OvCurrent   6
+//	#define			AD_DriveTmp					7
+//	#define			AD_PowTmpHigh       8
+//	#define			AD_PotLow           9
+//	#define			AD_KsiVBus          10
+//	#define			AD_VBus             11
+//	#define			AD_PowTmpLow				12
+//	#define			AD_MotorTmp 				13
+//	#define			AD_ThrotPotWip      14
+//	#define			AD_BrkPotWip        15
+//#endif  //#if (CTLBOARD_TYPE ==_1236)
+
+//#if (CTLBOARD_TYPE ==_1232)
+//	#define			AD_BrkPotWip				0
+//	#define			AD_PotLow						1
+//	#define			AD_Swi1							2
+//	#define			AD_V5out						3
+//	#define			AD_ThrotPotWip			4
+//	#define			AD_BrkPotHigh				5
+//	#define			AD_V12_5OvCurrent		6
+//	#define			AD_ThrotPotHigh			7
+//	#define			AD_VBus							8
+//	#define			AD_PowTmpHigh				9
+//	#define			AD_PowTmpLow				10
+//	#define			AD_KsiVBus					11
+//	#define			AD_V12out						12
+//	#define			AD_MotorTmp					13
+//#endif  //#if (CTLBOARD_TYPE ==_1232)
+
+//#if ((CTLBOARD_TYPE ==_1222) || (CTLBOARD_TYPE ==_1242))
+//#define			AD_VBus 					0
+//#define			AD_KsiVBus 			  1
+//#define			AD_V12out 				2
+//#define			AD_V5out 			  	3
+//#define			AD_V12_5OvCurrent 4
+//#define			AD_MotorTmp 			5
+//#define			AD_Swi7 					6
+//#define			AD_Swi8 					7
+//#define			AD_PowTmpHigh 		8
+//#define			AD_PowTmpLow 		  9
+//#define			AD_Swi5 					10
+//#define			AD_Swi6					  11
+//#endif  //#if (CTLBOARD_TYPE ==_1222)
+/******************************************************************************
+*数据类型定义
+******************************************************************************/
+#define DI_FILTER_CONSTANT	10		//10ms
+
+//*** Bit define for gPLCCtl.RemoteParaRdWrFlag
+#define RDREQ_RemoteParaRdWrFlag				    (0x0001 << 0)
+#define RDRDY_RemoteParaRdWrFlag				    (0x0001 << 1)
+#define WRREQ_RemoteParaRdWrFlag				    (0x0001 << 2)
+#define WRRDY_RemoteParaRdWrFlag				    (0x0001 << 3)
+
+//========Eeprom read & write opr exclusive flag=====================================
+#define PARACONFIG_EEPROMFLAG   (1 << 0)
+#define MAINLOOP_EEPROMFLAG     (1 << 1)
+	
+typedef struct DI_FILTER{
+	INT16U ucIn[6];	   		//DI 8路
+	INT16U ucInNew[6];	 	//DI 8路
+	INT16U ucInOld[6];	 	//DI 8路
+	INT16U ucTimer[6];	 	//DI 8路
+}DI_FILTER;
+
+/* PLC control */
+ typedef struct
+ {
+	 INT32U PlcCount;
+	 INT16U ctrl_mode;	//运行模式
+	 INT16U scs;	  //信号源
+	 INT32U	spc;  	//最大峰值电流
+	 INT32U	scc;	  //额定电流
+	 INT16U acc;	  //加速度	
+	 INT16U dec;	  //减速度	
+	 INT16U	ssp;   //电机最大速度
+	 INT16U	spt;	  //保护时间		 
+	 INT16U enc;	  //编码器分辨率
+	 INT16U SwapEncoderDir;	  //编码器换向
+	 INT16U PL;	  //油门分段控制
+	 INT16U P2;
+	 INT16U P3;	 
+	 INT16U PH;	
+ 	 INT16U PL_deg;
+	 INT16U P2_deg;
+	 INT16U P3_deg;	 
+	 INT16U PH_deg;	  //
+	 INT16U Redundant;	  //冗余检测
+	 INT16U ThrottleType;	//油门类型
+	 INT16U Command_left;	  //角度传感器最小值
+	 INT16U Command_centre;	  //角度传感器中位值
+	 INT16U Command_right;	  //角度传感器最大值
+	 INT32S MaxPosition;	  //最大位置
+	 INT32S CycleLimit;    //机械一圈对应的脉冲数	
+	 INT32S MaxPWMOut;		//电流环输出最大限制
+	 INT32S IR_Offset;		  //IR补偿
+	 
+	 INT16U MaxRunSpeed;	  //		
+	 INT16U AngleLimit1;	  //转弯降速角度1	
+	 INT16U AngleLimit2;	  //转弯降速角度2	 
+   INT16U	MaxCurentTime;	  //最大电流运行时间
+   INT16U	HighSpeedRatio;   //开环最大转速百分比
+   INT16U	TrqPreloadCancelDelay;  //电磁制动延时时间
+	 
+	 INT16U	Vp;	   //速度换比例系数
+	 INT16U	Vi;		 //速度环积分系数
+	 INT16U Vd;		 //速度环积分系数
+	 INT16U	Ip;		 //电流环比例系数
+	 INT16U	Ii;		 //电流环积分系数	 	 
+	 INT16U Id;		 //电流环微分系数
+	 INT16U	Mp;		 //位置环比例系数
+	 INT16U	Mi;		 //位置环积分系数		 
+	 INT16U Mk;		 //位置环前馈系数
+//	 INT16U	smav;	  //最小死区电压
+	 INT16U	vab;	  //校准B值
+	 INT16U vak;	  //校准K值
+	 INT32S sop;	  //回中范围
+	 INT16U sov;	  //回中速度	 	 
+	 INT16U	pmod;	  //电流保护模式	
+	 INT16U AutoManuelMode; //手动/自动模式
+	 INT16U IsHomeEna;	  //回中使能
+	 INT16U CoreLock;	    //内核锁
+	 INT8U HomeSwiState;	//回中状态  default:no triggle  1:triggle
+//	 INT16U	MainEna;	  //
+//	 INT16U	MainHoldVoltage;	  //
+//	 INT16U	InterlockEna;	  //
+//	 INT16U DcRateVoltage;	  // 
+//	 INT16U RunMode;	  // 
+//	 INT16U FwdMaxSpd;	  // 
+	 INT16U HomeMode;	  //回中开关模式 0:面域  1:单点	 
+	 INT16U HomeFlagRd; //记录的回中标志
+	 INT16U RotateDir;	  //电机反向
+	 INT16U TrigType;     //回中开关类型 0:PNP 1:NPN
+	 INT8U  SafeLockHome;	//互锁回中 0：互锁  1：不互锁
+	 INT16U FollowingErr;	  //跟随误差
+	 INT16U MotorMaxCurent;	  //电机最大电流
+	 INT16U GearDen;	  // 电子齿轮比
+	 INT16U GearNum; 
+	 INT16U CANEnable;
+	 INT16U	Addr;		
+	 INT16U	ProductType;		 
+	 INT16U SoftVersion;
+ 
+	_iq	iqKsiVBus;
+	DI_FILTER		diDataIn; 
+	INT16U			doDataOut[10];
+	INT16S			aiDataIn[13];
+	INT16S			PulseWidthDelay[5];
+	INT16U			PulsePeroid[5];
+	INT16U			PulseWidth[5];
+	
+	INT16S			TmpPower;	//功率板温度
+	INT16S			TmpDrive;	//驱动板温度
+	INT16U			TmpFlag;  //loop ctl flag
+	INT16S			TmpCount; //loop ctl flag
+	INT32S 			TmpPowerLSum;
+	INT32S 			TmpPowerHSum;
+	INT32S 			TmpPowerL;
+	INT32S 			TmpPowerH;
+	INT32S 			TmpDriveAdSum;
+	INT32S 			TmpDriveAd;
+	INT32S			TmpMotorAdSum;
+	INT32S      TmpMotorAd;
+	 
+	/* 故障报警代码 */
+	INT16U	AlmCode;
+	INT16U	ErrCode;
+	
+	INT16S		LedCountHead;
+	INT16S		LedCountRep;
+	INT16S		LedCount;
+	INT16S    LedBlinkPeriod;      //Led blink period ms
+
+	/* ICAN资源节点 */
+	tICAN_SMOVE icanSmove;
+	tICAN_LIFT icanLift;
+	tICAN_STEER icanSteer;
+	tICAN_HMI icanHMI;
+	tICAN_LOGIC icanLogic;
+	tICAN_PC icanPc;	
+	
+	INT16U   RemoteParaRdWrFlag;
+	INT16U   RemoteParaRdWrIndex;
+	INT16U   RemoteParaRdWrData;
+	unsigned char  PcProcType;		//PC process type
+	unsigned char  HmiProcType;	//HMI process type		/* DI、DO、AI AO*/
+	
+	INT32U  HourCnt;  		//0.1hour
+	INT32U  HourCntNew;  		//0.1hour
+	INT32U  HourCntPowerOn;  		//0.1hour
+	INT32U  HourCntPowerOnNew;  		//0.1hour
+	INT32U  HourCount6min;	
+
+	VINT16U gEepromFlag;
+    
+    //Remote  para 128#
+    INT8U ReMotorEnc: 1;        /* Bit0: 0:双电机编码器       1:单电机编码器 */
+    INT8U ReCmdEnc: 1;          /* Bit1: 0:双编码器方向盘     1:单编码器方向盘 */
+    INT8U RePotentiometer: 1;   /* Bit2: 0:双电位计           1:单电位计*/
+    INT8U ReFault: 1;           /* Bit3: 0:有Faultout过流     1:无Faultout过流*/
+    INT8U ReHomeSwi: 1;         /* Bit4: 0:冗余回中开关判断    1:不冗余判断*/
+    INT8U Reserve: 3;
+ } PLC_CTL; 
+ 
+ /* 参数修改控制结构 */
+//typedef struct PARA_MODIFY_CTL
+//{
+//	INT16S			OldValue;			/* 参数改变前的值 */
+//	INT16S			NewValue;			/* 参数改变后的值 */
+//	INT16U			ParaNo;				/* 正修改的参数号 */
+//	INT16U			bVolatile;			/* 是否保存参数 */
+//} PARA_MODIFY_CTL;
+
+///* servo parameters struct */
+//typedef struct SERVO_PARA
+//{
+//	/* 速度环电流环参数 */
+//	INT16U	IntertiaRatio;		/* 惯量比(%) */
+//	INT16U	SpeedWc;					/* 速度环截止频率(Hz) */
+//	INT16U	SpeedWit;					/* 速度环积分时间(ms) */
+//	INT16U	TorFilt1W;				/* 一阶转矩滤波器截止频率(Hz) */
+//	INT16U	TorFilt2W;				/* 二阶转矩滤波器截止频率(Hz) */
+//	INT16U	TorFilt2Q;				/* 二阶转矩滤波器品质因数(%) */
+//	INT16U	NotchFilt1W;			/* 第一陷波滤波器陷波频率(Hz) */
+//	INT16U	NotchFilt1Q;			/* 第一陷波滤波器品质因数(%) */
+//	INT16U	NotchFilt2W;			/* 第二陷波滤波器陷波频率(Hz) */
+//	INT16U	NotchFilt2Q;			/* 第二陷波滤波器品质因数(%) */
+//	INT16U	ObserverEnable;		/* 速度观测器使能 (BOOL) */
+//	INT16U	ObserverK;				/* 速度观测器系数：负载带宽是速度带宽的K%倍 */
+//	INT16U	CCWTorLimit;			/* CCW转矩限制百分比 */
+//	INT16U	CWTorLimit;				/* CW转矩限制百分比 */
+//	INT16U	SpdAccT;					/* 速度模式下的加速时间常数(ms) */
+//	INT16U	SpdDecT;					/* 速度模式下的减速时间常数(ms) */
+////	INT16U	RotationDir;			/* 旋转方向 */
+
+//	/* Tune */
+//	INT16U	TuneSpdMax;				/* 参数整定 最大速度 */
+//	INT16U	TuneR;						/* 参数整定 最大圈数 */
+//	INT16U	RefRigid;					/* 参考刚性 */
+
+//	/* Other */
+//	INT16U 	MotorType;				/* 电机型号 */
+//	INT16U	EncoderType;			/* 编码器型号*/
+//	INT16U 	SoftwareVer;			/* 软件版本号(只读) */
+//	INT16U	ExtBrakeHoldTime;	/* 电机抱闸保持时间(10 ms) */
+//	INT16U	RunMode;					/* 运行模式 */
+//	INT16U	TerOutInverse;		/* 输出端子极性取反 */
+//	INT16U	ForceServoOn;			/* 强迫伺服使能 */
+//	INT16U	PosErrThreshold; 	/* 位置超差监测阈值(1/1000 r) */
+//	INT16U	PosReachThreshold;	/* 定位完成范围阈值(1/1000 r) */
+//	INT16U	DisableEncoderChk;	/* 关闭编码器检查功能 */
+//	INT16U	DisablePosErrChk;	/* 关闭位置超差监测功能 */
+//	INT16U	DisableCcwINH;		/* 关闭正反转超程限制功能 */
+//	INT16U	ErrorTrace[10];		/* 错误历史 */
+//	INT16U	VerifiedWord;			/* 校验字 */
+//	INT16U	TorqueOffset;			/* 转矩运行模式时的转矩偏置(0.01Nm) */
+
+//	INT16U	StationAddr;	/* Mechatrolink,ICAN从站地址 */
+//	INT16U	StationType;	/* ICAN从站设备类型 */
+//	INT16U	ProductLsnL;			/* 序列号低16位 */
+//	INT16U	ProductLsnH;			/* 序列号高16位 */
+//	
+//	INT16U	AcMotorPloes;	
+//	INT16U	AcMotorMaxSpdF;			//最大频率uint 0.01hz
+//	INT16U	AcMotorRateSpdF;		//额定频率uint 0.01hz
+//	INT16U	AcMotorMaxSpdS;			//最大转差频率uint 0.01hz
+//	INT16U	AcMotorVoltageF0;
+//	INT16U	AcMotorRatedCurrent;
+//	INT16U	AcMotorRateVoltage;	
+//	INT16U	AcBusTest;	//kff TEST
+//	INT16U	SvOffDelay;
+//	INT16U	BuzzerTime;
+//	INT16U	NullPara;
+//	/* 参数修改控制结构 */
+//	PARA_MODIFY_CTL ModifyCtl;
+//} SERVO_PARA;
+
+/* Common ram */
+typedef struct 
+{
+//	/* kernel input data */
+//	INT32S	PosCmd;						/* 位置指令: 指令绝对位置(指令脉冲) */
+//	INT32S	PosFdb;						/* 位置反馈: 编码器绝对位置(编码器脉冲) */
+//	INT32S	SpeedCmd;					/* 速度指令: 用于速度控制模式(1 / 65536 HZ) */
+//	INT32S	SpeedFdb;					/* 速度反馈: 速度环输入值(Q24标幺值 rpm) */
+//	INT32S	TorqueCmd;				/* 转矩指令: 用于转矩控制模式(1 / 65536 Nm) */
+	INT32S	CurrentSampleU;		/* U相电流反馈: Q11标幺值 A */
+	INT32S	CurrentSampleW;		/* W相电流反馈: Q11标幺值 A */
+//	INT32S	RotorElecAngle;		/* 转子电角度: Q15 (2*PI rad) */
+//	INT32S  CurrentSampleVBus;/*直流母线采样 Q12标幺值 A*/
+//	INT32S  TempratureSample;	/*温度采样 单位 0.1C*/
+//	/* kernel output data */
+//	INT32S	PosRef;						/* 位置参考: 位置环输入值(编码器脉冲) */
+//	INT32S	PosErr;						/* 位置误差: 编码器脉冲 */
+//	INT32S  SpeedRef;					/* 速度参考: 速度环输入值(Q24标幺值 rpm) */
+//	INT32S	SpeedFdbDisp;			/* 速度反馈显示值:  Q24标幺值 rpm (8ms LPF滤波) */	
+//	INT32S	CurrentFdbIq;			/* 电流反馈Iq值: Q24标幺值 A */
+
+//	/* 故障报警代码 */
+   	INT16U	ErrCode;
+   	INT16U	AlmCode;
+
+//	/* servo parameters */
+//	SERVO_PARA	SvPa;
+
+//		/* PLC's Di */
+//	INT16U	NcDi;
+//	INT16U	PcDi;
+//	INT16U	PowerBoardDi;
+//	INT16U	LocalDi;
+
+//	/* PLC's Do */
+//	INT16U	NcDo;
+//	INT16U	PcDo;
+//	INT16U	PowerBoardDo;
+//	INT16U	LocalDo;
+
+	/* semaphore */
+	INT16U	SigLamp[SIGNAL_LAMP_NUM];
+	
+	/* Command */
+	INT32S CANSetM;
+	INT32S CANSetV;
+	INT32S CANSetI;
+	INT32S CANSetA;
+	
+//	/* Anolog In */
+//	INT16S AdcVal_I;		//ADC 电流转换结果
+//	INT16U CmdVal1;   //指令模拟量1
+//	INT16U CmdVal2;   //指令模拟量2
+//	INT16U PosVal1;	  //位置模拟量1
+//	INT16U PosVal2;	  //位置模拟量2
+//	INT16U A5V_Val;	  //+5V电源
+//	INT16U BattVal;	  //B+ 
+//	INT16U KSIVal;	  //KSI
+//	INT16U RlyOutVal;	//Rely_Out
+//	INT16U TmpLVal; 	//温度低
+//	INT16U TmpVal;	  //温度		
+//	INT32S IAdSum;					//电流16次和
+
+	
+	/* Control */
+	INT16U ModCh;	//模式改变标志
+	INT16U NewMod;//新模式值
+	INT16U ScsCh;	//信号源改变
+	INT16U NewScs;//新信号源值
+	INT16U bPwmClose;//pwm输出开关
+	INT16U SI;		//控制状态信息
+	INT16U bEnaHard;//硬件使能	
+	INT16U bEnaSoft;//软件使能	
+	INT32S SpeedLoopOut;		//速度环输出
+	INT16S PwmValue;				//pwm输出值
+	INT16S PwmOut;
+	INT16S SetPwm;		//放大器模式下PWM设定值	
+	INT32S PwmAcc;				//PWM加速度
+	INT32S PwmDec;				//PWM减速度
+	INT32S SpeedEK;				//速度差值
+	INT32S MaxSpeed;			//最大速度
+	INT32S SetPos;				//目标位置
+	INT32S RelPos;				//实际位置值
+	INT32S OldPos;				//上次位置值
+	INT32S SetSpeed;    	//设定速度
+	INT16S ISet;					//设定电流	
+	INT16S IAutoAdjust;			//电流校准值
+	INT32S Acceleration;		//加速度
+	INT32S OldSetSpeed;			//上次设定速度	
+	INT16S CmdDegree;			//指令设定角度		
+	INT16S CmdPercent;			//指令信号百分比
+	INT16S CmdPercentOld;			//指令信号百分比	
+	INT16S CmdDirection;			//指令信号方向
+	INT32S CmdRaw;
+	INT32S CmdAvg;
+	INT32S CmdSum;
+	INT16U WiperVoltage;       //滑动端电压值 0.1V
+	
+	/* Protection */
+	INT16S OverloadAd;		  //过载AD
+	INT16S OverloadAd_M;		//过载AD
+	INT16S OverIAd;		    //过流AD
+	INT16S OverIAd_M;		  //过流AD
+	INT32S MaxCurrentCount;    //最大电流保护延迟时间 
+	INT32S OverCurrentCount2M;   //额定电流保护延迟时间 
+	INT32S FollowingCuount;  //跟踪超限保护延迟时间 
+	INT32S FollowingErr_TLimit;  //跟踪超限保护延迟时间 
+	INT16U SpeedDelayCount;//速度失控保护延迟时间
+	INT16S MoveSpeedFdb;  //主行走反馈速度rpm	
+	
+	/* Homing */
+	INT16S FindZ;						//回零标志
+	INT16S HomSw_sta;				//回零状态
+	INT16S HomSw_sta_old;		//上次回零状态
+  INT16S bHomeDir;				//
+	INT16S HomeStep;				//回零步骤
+	INT16S HomSw_Presta;		//上次触发状态
+	
+	/* Others  */
+	INT16S SpeedAvgBuf[16];//速度平均值数组
+	INT16U SpeedAvgIndex;//速度平均值数组下标
+	INT32S SpeedAvgAdd;    //速度平均值和
+	INT32S SpeedAvg;
+	INT32S SpeedAvgAddSum;
+	INT16S AVAdBfu[16];		//模拟量平均
+	INT32S AVAdd;					//模拟量平均和
+	INT16U AVBufIndex;//下标
+	INT16S n1RPM;						//1RPM
+	INT16S nMav;							//速度模式死去电压
+	INT16U bVoltLimit; //反向充电过压标志
+	INT16S MaxHomeOffset;
+	INT16S bMoreI;
+	
+	INT32S  StartPos;  //中位开关起始沿
+	INT32S  EndPos;  	 //中位开关结束沿
+	INT32S  DetaPos;
+	
+	INT16S ZeroOffset;
+	INT16S EncoderCnt;
+	INT32S HomeOffset;
+	INT32S PosOffset;
+
+	INT16S PosEncoderCnt;	
+	INT16S PosCmdFor90Degree;
+	INT16S PosCmdForMaxDegree; //可允许的最大角度
+	INT16S PosCmdForRvsMaxDegree;	
+	INT32S MaxOverLoadCurrent;	/* 最大过载电流, Q24, 标幺值, A */
+	INT32S OverLoadCurrent2M;	/* 2分钟电流, Q24, 标幺值, A */	
+
+	/* 历史故障*/
+	INT16U	ErrorTrace[ErrTraceNum];		/* 错误历史 */
+	
+} KSD_COMMON_RAM;
+
+ 
+/* Exported macro ------------------------------------------------------------*/
+#define GetAdFromI(I)	((long)I*4096/343750)
+#define GetIFromAd(ad)	((long)ad*343750/4096)	// I(A)=(Ad*3300/4096)*(5/3)/40    Scale=50A senc=40mV/A
+#define	I20A			600
+
+//#define GetAdFromI(I)	((long)I*4096/171875)
+//#define GetIFromAd(ad)	((long)ad*171875/4096)	// I(A)=(Ad*3300/4096)*(5/3)/32    Scale=62.5A senc=32mV/A
+//#define	I20A			480
+
+#define SYS_PERIOD	1  //系统控制周期 ms
+
+#define	 MAX_ISET		1200	//1200=GetAdFromI(40000)
+
+#define 	ADV2_5V	 1650  //3300	//16380*10*2/20/1250	
+
+#define  CTRL_M		0	//速度控制模式
+#define  CTRL_V		1	//转矩/电流控制模式
+#define  CTRL_I		2	//电流控制模式
+#define  CTRL_A		3	//位置控制模式
+#define  CTRL_NULL	4	//
+
+#define  SCS0_CAN		0	//SCS0:CAN指令
+#define  SCS1_AV		1	//SCS1:模拟电压
+
+
+#define setDataBit(data, bit)                     (data |= bit##_##MASK)
+#define clrDataBit(data, bit)                     (data &= ~bit##_##MASK)
+#define getDataBit(data, bit)                     (data & bit##_##MASK)
+#define setDataBitGroup(data, bits, val)          (data = (unsigned int)((data & ~bits##_##MASK) | ((val) << bits##_##BITNUM)))
+#define getDataBitGroup(data, bits)               ((data & bits##_##MASK) >> bits##_##BITNUM)
+
+//system status
+#define  RDY			  1	    //
+#define  SVON				2	    //
+#define  EN_PWM			3	    //
+#define  SYSEN			4	    //
+#define  KSIRDY			5    //
+#define  VBUSRDY		6    //
+#define  RL		  	  7  	 //
+#define  POS_OK		    8  	 //
+//#define  HMSW		    9  	 //
+//#define  LOCKOUT	  10  	 //
+//#define  FAULT		  11  	 //
+
+#define  MOD			 12		//
+#define  SCS			 13    //
+
+
+#define  RDY_MASK					0x0001	    //
+#define  SVON_MASK				0x0002	    //
+#define  EN_PWM_MASK			0x0004	    //
+#define  SYSEN_MASK				0x0008	    //
+#define  KSIRDY_MASK			0x0010	    //
+#define  VBUSRDY_MASK			0x0020	    //
+#define  RL_MASK          0x0040			//
+#define  POS_OK_MASK		  	0x0080  	 //
+//#define  HMSW_MASK		    0x0100  	 //
+//#define  LOCKOUT_MASK		  0x0200  	 //
+//#define  FAULT_MASK		  	0x0400	   //
+
+#define  MOD_MASK			0x3000
+#define	 MOD_BITNUM		0x000c
+#define	 SCS_MASK			0xc000
+#define  SCS_BITNUM		0x000e
+
+/* DiDo状态信息  */
+//Di
+#define  HMSW		    1  	 //
+#define  LOCK		    2  	 //
+#define  TUNESW		  3   	 //
+//Do
+#define  LOCKOUT	  8  	 //
+#define  FAULT		  9  	 //
+#define  REDUCE1		  10   //
+#define  REDUCE2		  11   //
+
+#define  HMSW_MASK				0x0001	    //
+#define  LOCK_MASK				0x0002	    //
+#define  TUNESW_MASK			0x0004	    //
+
+#define  LOCKOUT_MASK			0x0100	    //
+#define  FAULT_MASK				0x0200	    //
+#define  REDUCE1_MASK     0x0400			//
+#define  REDUCE2_MASK		  0x0800  	 //
+
+
+//故障代码表
+#define	FB_OVERSPEED_ERR	  1		  //反馈超速   work
+#define	CORE_ERR					2		  //内核错误  
+#define	OVERLOAD_ERR		    3		  //过载错误   work
+#define	FOLLOWING_ERR       4		  //跟踪超限错误 work
+#define FAULTOUT_ERR		5		//FaultOut输出过流
+
+//#define	CMD_SPEED_ERR			6		  //速度指令错误	
+//#define	CMD_TORQUE_ERR		7		  //转矩指令错误
+#define	CMD_POSITION_ERR	8		  //位置指令错误
+#define MOTORENCODER_PHASE_ERR    9   //电机编码器缺相
+//#define ENCODER_PHASE_ERR    10   //方向盘编码器缺相
+#define	OVERCURRENT_2M_ERR	11    //控制器2分钟最大电流保护  work
+#define	OVERCURRENT_ERR		  12		//过流错误 50A  work
+#define	BUS_CAP_ERR				  13		//母线电容错误  work
+#define	RELAY_ERR					  14		//继电器错误  
+//#define	BRAKE_ERR					15		//制动错误
+#define	UNDERVOLT_ERR  		  16		//欠压错误  work
+#define	OVERVOLT_ERR        17		//过压错误  work
+#define	BOARD_OT_ERR			  18		//功率板过热错误  work
+//#define	MOTOR_OT_ERR			19		//电机过热错误
+#define	THROTTLE_OVERVOLT_ERR		20		//油门电位计开路   work
+#define	POWER5VA_ERR				  22		//5V电源A错误   work
+#define	ICAN_MACIDCHECK_ERR	23	  //MACID检测错误 work
+#define	RELAY_DRIVE_ERR		  24		//继电器驱动错误 work
+//#define	POWER_UNIT_ERR    25		//功率单元错误 
+#define MOTOR_SHORTCUT_ERR  26    //电机短路 	work
+#define	HOMING_ERR				  27		//寻零错误  work
+#define	PHASELOST_ERR				  28		//电机缺相错误  work
+#define	HEARTBEAT_ERR				29		//心跳错误  work
+//#define	UNDERVOLT_ALM			31    //电池低压报警 
+#define	BOARD_OT_ALM			 32		  //功率板过温报警  work
+#define	BOARD_LT_ALM			 33		  //功率板低温错误  低于-25 work
+//#define	MOTOR_OT_ALM			 34		  //电机过温报警 
+//#define	POWER12V_ERR			35		//12V电源报错
+#define	EEPROM_RW_ERR			  38		//EEPROM读写错误 work
+#define	PARA_OV_LIMIT_ERR	  39		//参数超限报警   work
+#define PARA_OV_INDEX_ERR   40	//参数序号超限 work
+					
+/*以下为报警，不关闭Pwm输出*/
+//#define	BOARD_OT_ALM			 41		  //功率板过温报警  work
+//#define	BOARD_LT_ALM			 42		  //功率板低温错误  低于-25 work
+#define	AUTOTUNE_TIP	 		 43			//参数自学习提示  work
+#define	AUTOTUNE_ALM	 		 44			//参数自学习错误报警  work
+#define HOME_SWI_ERR			 45		//回中信号丢失
+
+//以下为双冗余电路出现故障 报警定义   限制PWm输出
+#define POWER5VB_ERR			51   //5VB输出故障
+#define	MASTER_UART_ERR		52		//主检测串口通信故障
+#define MASTER_SWI_ERR	  53		//主Mcu检测开关故障
+#define	SLAVE_UART_ERR		54		//从串口故障
+#define SLAVE_PLUSECMD_ERR	55    //从MCU方向盘编码器单相掉线检测
+#define AICMD_CHECK_ERR		56			//从电位计检测错误
+#define SLAVER_SWI_ERR    57    //从MCU开关检测错误
+//#define WIPER1CHK_ALM			46		//副Mcu检测wiper1错误
+//#define WIPER2CHK_ALM			47		//
+
+/****slave chip Error code  define ****/
+#define USART_OVER_TIME                     54
+#define PLUSE_CMD_LOST                      55
+#define AICMD_CHECK_ERR                     56
+#define REDUNANT_SWI_ERR                	57
+#define REDUNDANT_MOTOR_ENC_ERR             58
+
+/*end of deifning error code*/
+
+#define MAIN_STATE_INIT			0
+#define MAIN_STATE_STOP			1
+#define MAIN_STATE_RUN			2
+#define MAIN_STATE_ZEROAUTO	3
+
+#define ZERO_RUN_INIT   0
+#define ZERO_RUN_RIGHT  1
+#define ZERO_RUN_LEFT   2
+#define ZERO_RUN_SETZERO   3
+#define ZERO_RUN_END		4
+ 
+extern PLC_CTL gPLCCtl;
+
+/* variables for common ram */
+extern		KSD_COMMON_RAM	gCRam;
+
+extern	INT16S g_nMainState;		 		//主运行状态
+extern	INT16S g_nZeroRunState;			//回零模式运行状态
+extern	VINT16U g_wTms;		//ms累加器
+extern	VINT16U g_wTs;		//s累加器
+
+extern	INT32S g_lPEK1,g_lPEK2;		//位置差值
+extern	INT32S g_lVEK1,g_lVEK2,g_lVEK3;//速度差值
+extern	INT32S g_nIEK,g_nIEK1;		//电流差值
+extern	INT16S g_nIntegar;			
+extern	INT32S g_lI_K_P;
+
+/******************************************************************************
+*函数定义
+******************************************************************************/
+extern void 	InitCommonRam(void);
+void InitVariable(void);
+void CfgVariable(void);

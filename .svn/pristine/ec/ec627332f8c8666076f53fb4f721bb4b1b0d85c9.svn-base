@@ -1,0 +1,119 @@
+/*******************************************************************************
+* Filename: Packet.h	                                             	 		   *
+* Description:											   			 		   												*
+* Author:                                                           		   *
+* Date:     														 		   														*
+* Revision:															 		 														  *
+*******************************************************************************/
+#ifndef _PACKET_H_
+#define _PACKET_H_
+
+#include "KSDsys.h"
+
+
+	#define  SWITCH_NUM  	3
+	#define  DRIVER_SUM   0
+
+// 数据包收发状态
+#define WAIT_INIT				0
+#define WAIT_HEAD1	 		1
+#define WAIT_HEAD2	 		2
+#define WAIT_FUNC1	  	3
+#define WAIT_FUNC2	 		4
+#define WAIT_LEN1	 			5
+#define WAIT_LEN2	 			6
+#define WAIT_DATA		 		7
+
+
+/*** Driver Bit define***/
+#define DO1_StateWord		(0x1 << 0)
+#define DO2_StateWord		(0x1 << 1)
+#define DO3_StateWord		(0x1 << 2)
+
+#pragma pack(push) // 保存之前的对齐方式
+#pragma pack(1)  //结构体对齐方式为按字节对齐
+typedef	 struct _tPacket 
+{
+	unsigned short wHead;  		//同步字 2byte
+	unsigned short wFunc;  		//信息表识 2byte
+	unsigned short wLength;   	//有效数据长度 2byte
+	unsigned char *pData;		//数据域指针
+	unsigned char  Checksum;	//和校验
+	unsigned char  RxState;	//预留	
+}tPacket;
+#pragma pack(pop) // 恢复之前的对齐方式
+
+/* Bit define of Stateword */
+#define RDY_Stateword        		(1 << 0)
+#define TYPE_0_25_50_Stateword	(1 << 1) 
+#define TYPE_0_50_Stateword			(1 << 2)
+#define TYPE_ENC_stateword			(1 << 3)  //1000
+
+#define	TOGGLE_Stateword			(1 << 7)
+
+
+/* Bit define of Throttletype */
+#define AI_0_25_50V		0
+#define AI_0_50V			1
+#define CMD_ENC				2
+
+
+//从站接收数据定义
+typedef	 union _tCommRamS 
+{
+	unsigned char ucData[3];
+	struct  
+	{	
+	unsigned char  Stateword;	//状态字 
+	unsigned char  AlarmCode;	//故障码
+	unsigned char  SwiState;
+	}Info;
+}tCommRamS;
+
+//主站接收数据定义
+typedef	 union _tCommRamM 
+{
+	unsigned char ucData[14];
+	struct  
+	{	
+	unsigned char  ControllWord;	//状态字
+	unsigned char  SwiState;
+	unsigned char  ThrotleOutput;
+	unsigned char SyncBaudrate;
+	unsigned char Wiper1Voltage;   //0.1V
+	unsigned char Wiper2Voltage;  //0.1V
+	signed short CmdEncT;
+	signed short MotorEncoder;
+	signed short CmdFor90DegreeCW;
+	signed short CmdFor90DegreeCCW;		
+	}Info;
+}tCommRamM;
+
+//变量定义
+extern tPacket	UARTPacketRx;
+extern tPacket	UARTPacketTx;
+
+extern tCommRamS gRamSlv;
+extern tCommRamM gRamMst;
+
+//函数定义
+extern void PacketInit(void);
+extern void UARTPkt_DataInManage(void);
+extern void UARTPkt_DataLogicManage(void);
+extern void UARTPkt_DataOutManage(void);
+void UpdataPlcDataFromUart(void);
+void UpdataUartDataFromPlc(void);
+
+#endif //_PACKET_H_
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,609 @@
+/*******************************************************************************
+* Filename: FDB.c                                             	 		   	   *
+*                                                                    		   *
+* Description:											   			 		   *
+* Author:                                                                      *
+* Date: 														          	   *
+* Revision:															 		   *
+*																	 		   *
+*******************************************************************************/
+
+#include  "FDB.h"
+//#include "Speed.h"
+#include	"CommonRam.h"
+#include 	"Device.h"
+#include 	"PARA.h"
+#include 	"PLCLogic.h"
+
+#if(CTLBOARD_TYPE == _1220_G4)  
+#include <stm32g473xx.h>
+#endif
+
+CURRENT_SAMPLE	gCurrentSample;
+//ENCODER			gEncoder;
+//HALL_FB			gHall;
+
+/*******************************************************************************
+* Name: EncoderIncInit
+* Description:
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+#define T_TIMER_CLOCK  (SystemCoreClock/2)     //60 000 000  60M
+
+void EncoderIncInit(ENCODER *p)
+{
+}
+
+
+/*******************************************************************************
+* Name: CurrentSampleInit
+* Description:
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+#define CURRENT_ZERO_DRIFT_DEFALT		0x7F0
+#define CURRENT_ZERO_DRIFT_DIV			8
+#define ANOLOG_SAMPLE_DIV  					4
+#define CMDVAL_SAMPLE_DIV  					6
+
+void CurrentSampleInit(CURRENT_SAMPLE *p)
+{
+  INT32S Index;
+	p->U = 0;
+	p->W = 0;
+	p->URaw = 0;
+	p->WRaw = 0;
+	p->UZeroDrift = CURRENT_ZERO_DRIFT_DEFALT;
+	p->WZeroDrift = CURRENT_ZERO_DRIFT_DEFALT;
+	p->UZeroDriftSum = CURRENT_ZERO_DRIFT_DEFALT << CURRENT_ZERO_DRIFT_DIV;
+	p->WZeroDriftSum = CURRENT_ZERO_DRIFT_DEFALT << CURRENT_ZERO_DRIFT_DIV;
+
+	p->VBus = 0;
+	p->VBusRaw = 0;
+	p->VBusZeroDrift = 0;
+	p->VBusZeroDriftSum = 0;
+
+	p->KsiVBus = 0;
+	p->KsiVBusRaw = 0;
+	p->KsiVBusZeroDrift = 0;;
+	p->KsiVBusZeroDriftSum = 0;
+
+	p->V5out = 0;
+	p->V12out = 0;
+	p->RelayOut = 0;
+	p->PowTmpHigh = 0;
+	p->PowTmpLow = 0;
+	p->MotorTmp = 0;
+	p->CmdVal1 = 0;
+	p->CmdVal2 = 0;
+	p->Swi7 = 0;
+	p->Swi8 = 0;
+
+	p->VBusSum = 0;
+	p->KsiVBusSum = 0;
+	p->V5outSum = 0;
+	p->RelayOutSum = 0;
+	p->PowTmpHighSum = 0;
+	p->PowTmpLowSum = 0;	
+	p->CmdVal1Sum = 0;
+	p->CmdVal2Sum = 0;
+
+	p->V5outRaw = 0;
+	p->V12outRaw = 0;
+	p->RelayOutRaw = 0;
+	p->PowTmpHighRaw = 0;
+	p->PowTmpLowRaw = 0;
+	p->MotorTmpRaw = 0;
+	p->CmdVal1Raw = 0;
+	p->CmdVal2Raw = 0;
+	p->Swi7Raw = 0;
+	p->Swi8Raw = 0;
+	
+	for (Index = 0; Index < (sizeof(p->SampleMapBuf.MapBuf)/sizeof(p->SampleMapBuf.MapBuf[0])); Index++)
+	{
+		p->SampleMapBuf.MapBuf[Index][0] = NO_CUR;
+		p->SampleMapBuf.MapBuf[Index][1] = NO_CUR;
+	}
+	p->SampleMapBuf.WrIndex = 0;	
+}
+
+#ifdef __DEBUG_SAMPLE_TMIE
+INT32U gCurrenSampleLostAllCount = 0;
+INT32U gCurrenSampleLostOneCount = 0;
+INT32U gCurrenSampleLostNoneCount = 0;
+#endif
+
+#if (CURRENT_SAMPLE_MODE == _CURRENT_SAMPLE_3RES_LOW)
+void ThreeRshuntCurrentDataToUVW(CURRENT_SAMPLE *p)
+{
+	ONE_SHUNT_BUF* pSampleMapBuf;
+	INT16S RdIndex;
+	INT16S IndexAd1, IndexAd2;
+//	INT16S IndexAd3;
+	
+	pSampleMapBuf = &p->SampleMapBuf;
+	RdIndex = pSampleMapBuf->WrIndex - 2;
+	if (RdIndex < 0)
+		RdIndex += (sizeof(pSampleMapBuf->MapBuf) / sizeof(pSampleMapBuf->MapBuf[0]));
+
+	IndexAd1 = pSampleMapBuf->MapBuf[RdIndex][0];
+	IndexAd2 = pSampleMapBuf->MapBuf[RdIndex][1];
+	if ((IndexAd1 != NO_CUR) && (IndexAd2 != NO_CUR))
+	{// Two data valid
+		//Set IndexAd1 data
+		IndexAd1 = IndexAd1 - U_CUR_P;
+		(&p->U)[IndexAd1] = -(&p->Adc1Data)[IndexAd1];
+		
+		//Set IndexAd2 data
+		IndexAd2 = IndexAd2 - U_CUR_P;
+		(&p->U)[IndexAd2] = -(&p->Adc1Data)[IndexAd2];
+		
+#ifdef __DEBUG_SAMPLE_TMIE
+		gCurrenSampleLostNoneCount++;
+#endif
+	}
+	else if (IndexAd1 != NO_CUR)
+	{// One data IndexAd1
+		IndexAd2 = (U_CUR_P + W_CUR_P) - IndexAd1;
+
+		//Set IndexAd1 data
+		IndexAd1 = IndexAd1 - U_CUR_P;
+		(&p->U)[IndexAd1] = -(&p->Adc1Data)[IndexAd1];
+		
+		//Cal the IndexAd2 phase by u + v + w = 0
+		IndexAd2 = IndexAd2 - U_CUR_P;
+		(&p->U)[IndexAd2] = -(&p->U)[IndexAd1];
+#ifdef __DEBUG_SAMPLE_TMIE
+		gCurrenSampleLostOneCount++;
+#endif
+	}
+	else if (IndexAd2 != NO_CUR)
+	{// One data IndexAd2
+		//No update
+#ifdef __DEBUG_SAMPLE_TMIE
+		gCurrenSampleLostAllCount++;
+#endif
+	}
+	else
+	{// No data
+	}
+}
+#endif //#if (CURRENT_SAMPLE_MODE == _CURRENT_SAMPLE_3RES_LOW)
+
+/*******************************************************************************
+* Name: ThreeRshuntCurrentSampleMapSet
+* Description: By PWM uvw  low side state, set ad sample time window & save the data index
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+#if (CURRENT_SAMPLE_MODE == _CURRENT_SAMPLE_3RES_LOW)
+void ThreeRshuntCurrentSampleMapSet(TIM_TypeDef* pTimerPwm, TIM_TypeDef* pTimerAd,ONE_SHUNT_BUF* pSampleMapBuf)
+{
+	INT32U TimCCR[3];
+	INT32U TimUVW[3];
+	INT32U tempCCR,tempUVW;
+	
+	//Read new pwm value which will act at the end of current pwm period.
+	TimCCR[0] = pTimerPwm->CCR1;
+	TimUVW[0] = U_CUR_P;
+	TimCCR[1] = pTimerPwm->CCR2;
+	TimUVW[1] = W_CUR_P;
+	
+	//Reorder from small to large.
+	if (TimCCR[0] > TimCCR[1])
+	{//swap
+		tempCCR = TimCCR[0];
+		tempUVW = TimUVW[0];
+
+		TimCCR[0] = TimCCR[1];
+		TimUVW[0] = TimUVW[1];
+
+		TimCCR[1] = tempCCR;
+		TimUVW[1] = tempUVW;
+	}
+	
+	//AD1
+	pTimerAd->CCR4 = TimCCR[1] + MIN_AD_HOLD_TIME - AD_SAMPLE_DELAY_TIME;//PWM_PERIOD + MIN_AD_HOLD_TIME - AD_SAMPLE_DELAY_TIME;
+	if ((PWM_PERIOD - TimCCR[0]) >= MIN_AD_HOLD_TIME)
+	{
+		pSampleMapBuf->MapBuf[pSampleMapBuf->WrIndex][0] = TimUVW[0];
+	}
+	else
+	{
+		pSampleMapBuf->MapBuf[pSampleMapBuf->WrIndex][0] = NO_CUR;  	//Set index of invalid data 
+	}
+	if ((PWM_PERIOD - TimCCR[1]) >= MIN_AD_HOLD_TIME)
+	{
+		pSampleMapBuf->MapBuf[pSampleMapBuf->WrIndex][1] = TimUVW[1];
+	}
+	else
+	{
+		pSampleMapBuf->MapBuf[pSampleMapBuf->WrIndex][1] = NO_CUR;  	//Set index of invalid data 
+	}
+
+	//Update WrIndex
+	pSampleMapBuf->WrIndex++;
+	if (pSampleMapBuf->WrIndex >= (sizeof(pSampleMapBuf->MapBuf) / sizeof(pSampleMapBuf->MapBuf[0])))
+		pSampleMapBuf->WrIndex = 0;
+}
+#endif //#if (CURRENT_SAMPLE_MODE == _CURRENT_SAMPLE_3RES_LOW)
+
+/*******************************************************************************
+* Name: CurrentSampleCalc
+* Description:
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+void CurrentSampleCalc(CURRENT_SAMPLE *p)
+{
+//管脚8	  ADC1_IN6	VBUS; 				 管脚10	ADC1_IN8	KSI;     管脚11	ADC1_IN9	IM1;  				  管脚12	ADC2_IN1	IM2;
+//管脚13	ADC1_IN2	THEO_WIP2; 		 管脚14	ADC1_IN3	TMP;     管脚17	ADC1_IN4	THRO_WIP1_R; 		管脚18	ADC2_IN17	5V_OUT_A_I;
+//管脚19	ADC2_IN13	5V_OUT_B_I;    管脚20	ADC2_IN3	5V_OUT_A; 管脚21	ADC2_IN4	5V_OUT_B; 		管脚24	ADC3_IN2	M1_R;
+//管脚25	ADC3_IN1	M2_R;	
+#if(CTLBOARD_TYPE == _1220_G4)
+	p->WRaw = HAL_ADCEx_InjectedGetValue(&hadc1,ADC_INJECTED_RANK_1);  //电流检测
+	p->URaw = HAL_ADCEx_InjectedGetValue(&hadc2,ADC_INJECTED_RANK_1);	
+	/**********ADC1*********/
+//	ADC_SoftwareStartConv(ADC1);	//启动转换
+	p->PowTmpHighRaw = (INT16U)ADCValue[0];
+	p->CmdVal2Raw = (INT16U)ADCValue[1];		//指令模拟量2
+	//p->URaw= (INT16U)ADCValue[0];	  //IU
+	p->VBusRaw = (INT16U)ADCValue[2];	  //B+ 
+	p->KsiVBusRaw = (INT16U)ADCValue[3];	  //KSI
+	p->CmdVal1Raw = (INT16U)ADCValue[4];		//指令模拟量1
+	p->VrefIntRaw = (INT16U)ADCValue[5];	  //VREFINT
+//	p->V5outRaw= (INT16U)ADCValue[4];	  //+5V电源
+	//p->RelayOutRaw= (INT16U)ADCValue[5]; //Rely_Out
+//	p->PowTmpLowRaw= (INT16U)ADCValue[9];	  //温度低	
+	/**********ADC1 End********/
+	
+	/***********ADC2**********/
+ 	p->V5outRaw  = (INT16U)ADC2Value[0];  //5V输出A
+	p->V5outRaw2 = (INT16U)ADC2Value[1];  //5V输出B
+	p->V12_5OvCurrentRaw = (INT16U)ADC2Value[2];  //5V电流采样A
+	p->V12_5OvCurrentRaw2 = (INT16U)ADC2Value[3]; //5V电流B
+	/**********ADC2 End*****/
+	
+	/***********ADC3**********/
+	p->UPhaseRaw = (INT16U)ADC3Value[0];  //M1_R
+	p->WPhaseRaw = (INT16U)ADC3Value[1];	//M2_R
+	/**********ADC3 End*****/
+	
+	//p->VBus = p->VBusRaw;
+	p->VBusSum += (p->VBusRaw - p->VBus);
+	p->VBus = (INT16S)(p->VBusSum >> ANOLOG_SAMPLE_DIV);	
+//	p->KsiVBus = p->KsiVBusRaw;	
+	p->KsiVBusSum += (p->KsiVBusRaw - p->KsiVBus);
+	p->KsiVBus = (INT16S)(p->KsiVBusSum >> ANOLOG_SAMPLE_DIV);	
+	p->V5out = p->V5outRaw;
+	p->V5out2 = p->V5outRaw2;
+//	p->V12_5OvCurrent = p->V12_5OvCurrentRaw;
+	p->V12_5OvCurrentSum += (p->V12_5OvCurrentRaw - p->V12_5OvCurrent);
+	p->V12_5OvCurrent = (INT16S)(p->V12_5OvCurrentSum >> ANOLOG_SAMPLE_DIV);	
+//	p->V12_5OvCurrent2 = p->V12_5OvCurrentRaw2;
+	p->V12_5OvCurrentSum2 += (p->V12_5OvCurrentRaw2 - p->V12_5OvCurrent2);
+	p->V12_5OvCurrent2 = (INT16S)(p->V12_5OvCurrentSum2 >> ANOLOG_SAMPLE_DIV);	
+	p->VrefInt = p->VrefIntRaw;		
+//	p->V5outSum += (p->V5outRaw - p->V5out);
+//	p->V5out = (INT16S)(p->V5outSum >> ANOLOG_SAMPLE_DIV);	
+//	p->V12out = p->V12outRaw;
+//	p->RelayOut = p->RelayOutRaw;
+//	p->RelayOutSum += (p->RelayOutRaw - p->RelayOut);
+//	p->RelayOut = (INT16S)(p->RelayOutSum >> ANOLOG_SAMPLE_DIV);
+	p->PowTmpHighSum += (p->PowTmpHighRaw - p->PowTmpHigh);
+	p->PowTmpHigh = (INT16S)(p->PowTmpHighSum >> CMDVAL_SAMPLE_DIV);
+	//p->PowTmpLow = p->PowTmpLowRaw;	
+//	p->MotorTmp = p->MotorTmpRaw;
+//	p->CmdVal1 = p->SCmdVal1Raw;
+	p->CmdVal1Sum += (p->CmdVal1Raw - p->CmdVal1);
+	p->CmdVal1 = (INT16S)(p->CmdVal1Sum >> CMDVAL_SAMPLE_DIV);	
+//	p->CmdVal2 = p->CmdVal2Raw;
+	p->CmdVal2Sum += (p->CmdVal2Raw - p->CmdVal2);
+	p->CmdVal2 = (INT16S)(p->CmdVal2Sum >> CMDVAL_SAMPLE_DIV);
+//	p->Swi7 = p->Swi7Raw;
+//	p->Swi8 = p->Swi8Raw;
+
+	gPLCCtl.aiDataIn[AD_PowTmpHigh]=p->PowTmpHigh;
+//	gPLCCtl.aiDataIn[AD_RelayR] = p->RelayOut;
+
+	static __IO INT16U LastTimCCR1,LastTimCCR2;
+	if(LastTimCCR1 >= (PWM_PERIOD*0.94)) //U相采样无效，同W相
+	{
+		p->URaw = p->WRaw;
+	}
+	else if(LastTimCCR2 >= (PWM_PERIOD*0.94))  //W相采样无效，同U相
+	{
+		p->WRaw = p->URaw;
+	}
+	LastTimCCR1 = TIM1->CCR1;
+	LastTimCCR2 = TIM1->CCR2;
+	
+	p->U = (p->URaw - p->UZeroDrift);
+	p->W = (p->WRaw - p->WZeroDrift);
+	
+	p->UPhaseSum += p->UPhaseRaw - p->UPhase;
+	p->UPhase = p->UPhaseSum >> ANOLOG_SAMPLE_DIV;
+	p->VPhaseSum += p->VPhaseRaw - p->VPhase;
+	p->VPhase = p->VPhaseSum >> ANOLOG_SAMPLE_DIV;
+#endif //if(CTLBOARd_TYPE == _1220_G4)
+}
+
+/*******************************************************************************
+* Name: CurrentSampleCalcZeroDrift
+* Description:
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+void CurrentSampleCalcZeroDrift(CURRENT_SAMPLE *p)
+{
+	/* calculate current zero drift using LPF */
+	p->UZeroDriftSum += (p->URaw - p->UZeroDrift);
+	p->UZeroDrift = (INT16S)(p->UZeroDriftSum >> CURRENT_ZERO_DRIFT_DIV);
+	p->WZeroDriftSum += (p->WRaw - p->WZeroDrift);
+	p->WZeroDrift = (INT16S)(p->WZeroDriftSum >> CURRENT_ZERO_DRIFT_DIV);
+}
+
+/*******************************************************************************
+* Name: GetIncEncoderUVW
+* Description:
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+//INT16U GetIncEncoderUVW(void)
+//{
+//	return (INT16U)(1 & 0x0007);
+//}
+/*******************************************************************************
+* Name: EncoderIncCalc
+* Description:
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+//static void EncoderIncCalc(ENCODER *p)
+//{
+
+//	//use T spdraw
+//	p->SpdRaw = 0;
+//	p->ElecTheta = 0;
+
+//	//use M spdraw
+//	//p->SpdRaw = p->MSpdRaw;
+//	//p->ElecTheta = p->ElecThetaM;
+//	
+
+//}
+/*******************************************************************************
+* Name: InitFeedbackDevice
+* Description:
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+void InitFeedbackDevice(void)
+{
+	/* 1. encoder feedback initialize */
+//	gEncoder.Init = EncoderIncInit;
+//	gEncoder.Calc = EncoderIncCalc;
+//	/* execute init function */
+//	gEncoder.Init(&gEncoder);
+//	/* 第一次数据读取 */
+//	gEncoder.Calc(&gEncoder);
+
+	/* 2. Current Sample feedback initialize */
+	gCurrentSample.Init = CurrentSampleInit;
+	gCurrentSample.Calc = CurrentSampleCalc;
+	gCurrentSample.Calc_ZeroDrift = CurrentSampleCalcZeroDrift;
+	gCurrentSample.Init(&gCurrentSample);
+
+	/* 3. line scale feedback initialize */
+}
+
+/*******************************************************************************
+* Name: FeedbackOvLoadCheck
+* Description: 1s period. Run in background.
+* Input: 
+* Output: 
+* 
+* Author:
+* Date:
+* Revision:
+*******************************************************************************/
+ #ifdef MAX_PHASECUR_MONITOR
+//INT32S gUVWX[9];
+#endif
+void FeedbackOvLoadCheck(void)
+{
+	INT32S UQ24,WQ24;
+	static INT16S s16TerRdyDelay = (2<<CURRENT_ZERO_DRIFT_DIV); //delay  filter time * 2
+
+	if (SL_CHK(SL_TER_RDY))
+	{
+		if(s16TerRdyDelay > 0)
+			s16TerRdyDelay--;
+	}
+	/* No.12: 电机电流瞬时超过最大过载值 */
+	if ((!SL_CHK(SL_OVER_CURRENT_ERR)) && SL_CHK(PLC_TER_EN_PWM) && (s16TerRdyDelay == 0))
+		{	
+		/* 获取最大电流值  */
+		if ((UQ24 = _IQ11toIQ(gCRam.CurrentSampleU)) < 0)
+				UQ24 = -UQ24;
+	//	if ((VQ24 = _IQ11toIQ(gCRam.CurrentSampleU-gCRam.CurrentSampleW)) < 0)
+	//			VQ24 = -VQ24;
+	//	VQ24 = 0;
+		if ((WQ24 = _IQ11toIQ(gCRam.CurrentSampleW)) < 0)
+				WQ24 = -WQ24;
+
+	//	if (UQ24 < VQ24)
+	//			UQ24 = VQ24;
+		if (UQ24 < WQ24)
+				UQ24 = WQ24;
+
+		/* No.12: 电机电流瞬时超过最大过载值 */
+		if (UQ24 >= gCRam.MaxOverLoadCurrent)
+		{
+				PwmDisableEsp();
+				SL_SET(SL_OVER_CURRENT_ERR);
+				MCL_SetFault(OVERCURRENT_ERR);
+		}
+
+		#ifdef MAX_PHASECUR_MONITOR
+		if (gCRam.CurrentSampleMax < UQ24)
+		{
+				gCRam.CurrentSampleMax = UQ24;
+		}
+		#endif //MAX_PHASECUR_MONITOR
+	}
+}
+
+//void FeedbackOvLoadCheck(void)
+//{
+//        INT32S UQ24,VQ24,WQ24;
+//        static INT16S s16TerRdyDelay = (2<<CURRENT_ZERO_DRIFT_DIV); //delay  filter time * 2
+//        
+//        if (SL_CHK(SL_TER_RDY))
+//        {
+//                if(s16TerRdyDelay > 0)
+//                        s16TerRdyDelay--;
+//        }
+//        /* No.12: 电机电流瞬时超过最大过载值 */
+//        if ((!SL_CHK(SL_OVER_CURRENT_ERR)) && (s16TerRdyDelay == 0))
+//        {
+//                /* 获取最大电流值  */
+//                if ((UQ24 = _IQ11toIQ(gCRam.CurrentSampleU)) < 0)
+//                                UQ24 = -UQ24;
+////                if ((VQ24 = _IQ11toIQ(gCRam.CurrentSampleV)) < 0)
+////                                VQ24 = -VQ24;
+//                if ((WQ24 = _IQ11toIQ(gCRam.CurrentSampleW)) < 0)
+//                                WQ24 = -WQ24;
+//                
+//                #if (CTLBOARD_TYPE ==_4809E_G4)
+//                        UQ24 = 0; //U 为直流泵电流
+//                #endif
+//                #if (CTLBOARD_TYPE ==_4809M1_G4)
+//                        WQ24 = 0; //W 为直流泵电流
+//                #endif
+//                #if ((CTLBOARD_TYPE ==_1226C) && (defined BRUSHOFF_EN))
+//                if(SL_CHK(SL_LOGIC_USER1)) //卸刷标志        
+//                        WQ24 = 0; //W 为刷盘电机电流,卸刷过程不检测过流
+//                #endif
+
+//                if (UQ24 < VQ24)
+//                                UQ24 = VQ24;
+//                if (UQ24 < WQ24)
+//                                UQ24 = WQ24;                                
+
+//                if (UQ24 >= gCRam.MaxOverLoadCurrent)  //gKernelCtl.MaxOverLoadCurrent)
+//                {
+//                                PwmDisableEsp();
+//                                SL_SET(SL_OVER_CURRENT_ERR);
+//                }
+//                
+////                #if (SBDCDRIVER_TYPE == SBDCDRIVER_ENABLE)
+////                INT32S PQ24;
+////                #if (CTLBOARD_TYPE ==_4809E_G4)
+////                gCurrentSample.X = gCRam.CurrentSampleU;
+////                #elif (CTLBOARD_TYPE ==_4809M1_G4)
+////                gCurrentSample.X = gCRam.CurrentSampleW;
+////                #elif (CTLBOARD_TYPE ==_1226C)
+////                gCurrentSample.X = gCurrentSample.X;
+////                #else
+////                gCurrentSample.X = 0;
+////                #endif
+////                if ((PQ24 = _IQ11toIQ(gCurrentSample.X)) < 0)
+////                                PQ24 = -PQ24;
+////                if (PQ24 >= gKernelCtl.SbdcMaxOverLoadCurrent)
+////                {
+////                                PwmDisableEsp();
+////                                SL_SET(SL_OVER_CURRENT_ERR);
+////                }
+////                #endif
+//        }
+//        
+//        #ifdef MAX_PHASECUR_MONITOR
+//        if (gCRam.CurrentSampleMax < UQ24)
+//        {
+//                        gCRam.CurrentSampleMax = UQ24;
+//        }
+
+//        #endif //MAX_PHASECUR_MONITOR
+//        
+////        if (_IQ12toIQ(gCRam.CurrentSampleVBus) > (gKernelCtl.EspHighVoltage))
+////        {
+////                        PwmDisableEsp();
+////                        SL_SET(SL_ESP_VOLTAGE_ERR);
+////        }
+//}
+
+/*******************************************************************************
+* Name: FeedbackProcess
+* Description: Run in ISR.
+* Input: 
+* Output: 
+*
+* Author:
+* Date: 
+* Revision:
+*******************************************************************************/
+void FeedbackProcess(void)
+{
+	/* process */
+	/* 1. current sample */
+	gCurrentSample.Calc(&gCurrentSample);
+	/* set common ram area */
+	gCRam.CurrentSampleU = gCurrentSample.U;
+	gCRam.CurrentSampleW = gCurrentSample.W;
+	//gCRam.CurrentSampleVBus = gCurrentSample.VBus;
+
+	FeedbackOvLoadCheck();
+
+//#if (FEEDBACK_TYPE == ENCODER_FEEDBACK)
+//	/* 2. encoder */
+//	gEncoder.Calc(&gEncoder);
+//	
+//	/* set common ram area */
+//	gCRam.PosFdb = gEncoder.PosAbs;
+//	gCRam.RotorElecAngle = (INT32S)gEncoder.ElecTheta;
+//	gCRam.SpeedFdb = gEncoder.SpdRaw;	
+//	
+//#elif (FEEDBACK_TYPE == HALL_FEEDBACK)
+//	/* 3. Hall feedback process */	
+//	gHall.Calc(&gHall);
+//	
+//	/* set common ram area */
+//	gCRam.PosFdb = 0;
+//	gCRam.SpeedFdb = (INT32S)gHall.SpdFdbAvg;//<<16;	
+//#endif
+}
+

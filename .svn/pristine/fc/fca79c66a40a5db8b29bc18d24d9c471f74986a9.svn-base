@@ -1,0 +1,65 @@
+#include "Device.h"
+#include "CommonRam.h"
+#include  "CanOpen_QexpandAgvV04.h"
+#include "FDB.h"
+//转向控制器定时发送PDO报文
+
+void PDO_Prco(void)
+{
+	static INT8U Count=0;
+	tCANFrame canFrame;	//
+	
+	if(!(Count++&0x03))  //2*10=20ms
+	{
+		CanOpenUpdatePlcDataFromRxbuf();
+//		CanOpenRxFrameMonitor();
+		if (QExpandAGV_PDO.CanBuf_ID1X0R_Delay >= 10)
+		{
+			QExpandAGV_PDO.CanBuf_ID1X0R[0] = 0;
+			QExpandAGV_PDO.CanBuf_ID1X0R[1] = 0;
+			
+			QExpandAGV_PDO.AgvHeartBeatError = 1;
+		}
+		else
+		{
+			QExpandAGV_PDO.CanBuf_ID1X0R_Delay += 1;
+			QExpandAGV_PDO.AgvHeartBeatError = 0;
+		}
+		
+		if(QExpandAGV_PDO.VCUControlWord & 0x0010)
+			gCRam.bEnaSoft = 1;
+		else
+			gCRam.bEnaSoft = 0;
+		
+		//发送反馈报文
+		canFrame.ulID=0x360;
+		canFrame.ucXID=0;			//0 标准帧；1 扩展帧  
+		canFrame.ucDataLength=8;		//数据场长度
+		
+		if(SL_CHK(PLC_MIDDLE_RDY))		//homing ok flag
+					QExpandAGV_PDO.StateWord |= 0x01;
+		else  QExpandAGV_PDO.StateWord &= ~0x01;
+		if(gCRam.bEnaSoft)		//upright flag
+					QExpandAGV_PDO.StateWord |= 0x10;
+		else  QExpandAGV_PDO.StateWord &= ~0x10;
+		
+		
+		QExpandAGV_PDO.ErrorCode = gPLCCtl.ErrCode;		
+		QExpandAGV_PDO.AngleMeasured =  (gPLCCtl.icanSteer.ucSteerAngleH<<8) + gPLCCtl.icanSteer.ucSteerAngleL;
+		QExpandAGV_PDO.SpeedMeasured =  gPara.AcMotorSpeed; //rpm gCRam.SpeedAvgAdd*6250/gPLCCtl.enc; //0.01Hz
+		QExpandAGV_PDO.CurrentMeasured = gCurrentSample.V12_5OvCurrent2;
+	
+		canFrame.ucData[0] = QExpandAGV_PDO.StateWord & 0xFF;
+		canFrame.ucData[1] = QExpandAGV_PDO.ErrorCode & 0xFF;
+		canFrame.ucData[2] = (QExpandAGV_PDO.AngleMeasured) & 0xFF;
+		canFrame.ucData[3] = (QExpandAGV_PDO.AngleMeasured >> 8) & 0xFF;
+		canFrame.ucData[4] = (QExpandAGV_PDO.SpeedMeasured) & 0xFF;
+		canFrame.ucData[5] = (QExpandAGV_PDO.SpeedMeasured >> 8) & 0xFF;
+		canFrame.ucData[6] = (QExpandAGV_PDO.CurrentMeasured) & 0xFF;
+		canFrame.ucData[7] = (QExpandAGV_PDO.CurrentMeasured >> 8) & 0xFF;
+		
+		CANWriteBuffer(&canFrmTxBuffer, &canFrame);
+//		CANFrmSend(&canFrmTxBuffer);		
+	}
+}
+

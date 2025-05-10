@@ -1,0 +1,15 @@
+dvm2404_g4\ican_slave.o: ..\Plc\iCAN_slave.c
+dvm2404_g4\ican_slave.o: ../Inc/iCAN.h
+dvm2404_g4\ican_slave.o: ../Inc/KSDsys.h
+dvm2404_g4\ican_slave.o: ..\Lib\IQmathLib.h
+dvm2404_g4\ican_slave.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+dvm2404_g4\ican_slave.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+dvm2404_g4\ican_slave.o: ../Inc/iTimer.h
+dvm2404_g4\ican_slave.o: ..\Plc\canSTM32F4.h
+dvm2404_g4\ican_slave.o: ../Inc/message.h
+dvm2404_g4\ican_slave.o: ../Inc/queue.h
+dvm2404_g4\ican_slave.o: ../Inc/CommonRam.h
+dvm2404_g4\ican_slave.o: ../Inc/iCANPlc.h
+dvm2404_g4\ican_slave.o: ../Inc/Para.h
+dvm2404_g4\ican_slave.o: ../Inc/PLC.h
+dvm2404_g4\ican_slave.o: ../Inc/PLCLogic.h

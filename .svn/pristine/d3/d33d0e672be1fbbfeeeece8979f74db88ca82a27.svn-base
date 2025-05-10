@@ -1,0 +1,333 @@
+/*******************************************************************************
+* Filename: CommonRam.c                                             	 		   	   *
+*                                                                    		   *
+* Description:											   			 		   *
+* Author:                                                                   *
+* Date: 														           *
+* Revision:															 		   *
+*																	 		   *
+*******************************************************************************/
+
+#include "CommonRam.h"
+#include "MC_type.h"
+#include "MC_MotorControl_Layer.h"
+#include "Device.h"
+KSD_COMMON_RAM	gCRam;
+//FORKLIFT_PARA gForkLift;
+PLC_CTL gPLCCtl;
+
+/* Private function prototypes -----------------------------------------------*/
+INT16S g_nMainState;		 		//主运行状态
+INT16S g_nZeroRunState;			//回零模式运行状态
+VINT16U g_wTms;		//ms累加器
+VINT16U g_wTs;		//s累加器
+
+INT32S g_lPEK1,g_lPEK2;		//位置差值
+INT32S g_lVEK1,g_lVEK2,g_lVEK3;//速度差值
+INT32S g_nIEK,g_nIEK1;		//电流差值
+INT16S g_nIntegar;			
+INT32S g_lI_K_P;
+
+/*******************************************************************************
+* Name: InitCommonRam
+* Description:
+* Input: 
+* Output: 
+*
+* Author: 
+* Date: 
+* Revision:
+*******************************************************************************/
+void InitCommonRam(void)
+{
+	INT16U i;
+
+//	/* gCRam, input to kernel */
+//	gCRam.PosCmd = 0;
+//	gCRam.PosFdb = 0;
+//	gCRam.SpeedCmd = 0;
+//	gCRam.SpeedFdb = 0;
+//	gCRam.TorqueCmd = 0;
+//	gCRam.CurrentSampleU = 0;
+//	gCRam.CurrentSampleW = 0;
+//	gCRam.RotorElecAngle = 0;
+//	gCRam.CurrentSampleVBus = 0;
+//	gCRam.TempratureSample = 0;
+//	
+//	/* gCRam, output from kernel */
+//	gCRam.PosRef = 0;
+//	gCRam.PosErr = 0;
+//	gCRam.SpeedRef = 0;
+//	gCRam.SpeedFdbDisp = 0;
+//	gCRam.CurrentFdbIq = 0;
+//	/* gCRam, ErrCode, AlmCode */
+	gCRam.CmdRaw = 0;
+	gCRam.ErrCode = 0;
+	gCRam.AlmCode = 0;
+//	/* gCRam, Di, Do */
+//	gCRam.NcDi = 0;
+//	gCRam.PcDi = 0;
+//	gCRam.PowerBoardDi = 0;
+//	gCRam.LocalDi = 0;
+//	gCRam.NcDo = 0;
+//	gCRam.PcDo = 0;
+//	gCRam.PowerBoardDo = 0;
+//	gCRam.LocalDo = 0;
+	/* gCRam.SigLamp */
+	for(i = 0; i < SIGNAL_LAMP_NUM; i++)
+	{
+		gCRam.SigLamp[i] = 0;
+	}
+	/* gCRam.SvPa */
+//	gCRam.SvPa.RunMode=1;
+//	gCRam.SvPa.SpeedWc= 200;//200;
+//	gCRam.SvPa.SpeedWit=30;//2;
+//	gCRam.SvPa.TorFilt1W=1060;//1060;
+//	gCRam.SvPa.TorFilt2W=1600;//1600;
+////	gCRam.SvPa.RotationDir=2;
+//	gCRam.SvPa.TorqueOffset=0;
+//	
+//	gCRam.SvPa.AcMotorMaxSpdF = 9000; //max fr out uint 0.01hz
+//	gCRam.SvPa.AcMotorRateSpdF = 6500; //额定电压对应的频率uint 0.01hz
+//	gCRam.SvPa.AcMotorMaxSpdS = 430; //最大转差uint 0.01hz
+//	gCRam.SvPa.AcMotorPloes = 2;
+//	
+//	gCRam.SvPa.AcMotorVoltageF0=10;
+//	gCRam.SvPa.AcMotorRatedCurrent=70;
+//	gCRam.SvPa.AcMotorRateVoltage=380;
+//	gCRam.SvPa.AcBusTest=380;
+
+//	gCRam.SvPa.ForceServoOn=0;
+//	gCRam.SvPa.CCWTorLimit=150;
+//	gCRam.SvPa.CWTorLimit=150;
+//	gCRam.SvPa.SpdAccT=500;
+//	gCRam.SvPa.SpdDecT=500;
+//	gCRam.SvPa.SvOffDelay=20;
+//	gCRam.SvPa.RefRigid=1;
+//	gCRam.SvPa.IntertiaRatio=100;
+//	gCRam.SvPa.TerOutInverse=0;
+//	gCRam.SvPa.ExtBrakeHoldTime=50;
+//	gCRam.SvPa.StationAddr=2;
+//	gCRam.SvPa.StationType=16;
+//	gCRam.SvPa.ProductLsnL=0;
+//	gCRam.SvPa.ProductLsnH=0;
+//	gCRam.SvPa.NotchFilt1W=4000;
+//	gCRam.SvPa.NotchFilt1Q=71;
+//	gCRam.SvPa.NotchFilt2W=4000;
+//	gCRam.SvPa.NotchFilt2Q=71;
+//	gCRam.SvPa.TorFilt2Q=71;
+//	gCRam.SvPa.TuneSpdMax=1500;
+//	gCRam.SvPa.TuneR=4;	
+//	gCRam.SvPa.BuzzerTime=64;
+//	gCRam.SvPa.DisableCcwINH=1;
+
+	/* Command */
+		gCRam.CANSetM=0;	//
+		gCRam.CANSetV=0;	//
+		gCRam.CANSetI=0;   //
+		gCRam.CANSetA=0;   //
+	
+	/* Anolog In */
+		
+	/* Control */
+		gCRam.ModCh=0;//
+		gCRam.NewMod=0;//
+		gCRam.ScsCh=0;//
+		gCRam.NewScs=0;//
+		gCRam.SpeedAvgAdd=0;
+		gCRam.SpeedAvg=0;
+		gCRam.AVAdd=0;//
+		gCRam.Acceleration=60;
+		gCRam.IAutoAdjust=0;
+		gCRam.OldSetSpeed=0;//
+		gCRam.PwmAcc=1;
+		gCRam.SpeedEK=0;
+		gCRam.SI=0;		
+		gCRam.SetPwm=0;
+		gCRam.MaxSpeed=0;	//
+		gCRam.SetSpeed=0;    //
+		gCRam.bPwmClose=1;//pwm
+		gCRam.ISet=0;//
+		gCRam.RelPos=0;//
+		gCRam.PwmValue=0;
+		gCRam.bEnaHard=0;	//硬件使能	
+		gCRam.bEnaSoft=0;	//软件使能			
+		gCRam.SetPos=0;//
+		gCRam.OldPos=0;//
+		gCRam.MoveSpeedFdb=0;//
+	
+	/* Protection */
+		gCRam.OverloadAd=16384;		// 过载Ad
+		gCRam.OverloadAd_M=-16384;		//Ad
+		gCRam.OverIAd=32760;		//过流Ad
+		gCRam.OverIAd_M=-32760;		//Ad	
+		gCRam.SpeedDelayCount=0;	
+		gCRam.MaxCurrentCount=0;   //
+		gCRam.OverCurrentCount2M=0;   //
+		gCRam.FollowingCuount=0;
+		gCRam.FollowingErr_TLimit= 16000/SYS_PERIOD;		//8s=8*1000ms
+	
+	/* Homing */
+		gCRam.FindZ=0;						//回零标志
+
+	/* Others  */
+		gCRam.bVoltLimit=0;	
+		gCRam.bMoreI=0;
+		gCRam.n1RPM=1;
+		gCRam.nMav=0;		
+		
+		InitVariable();  //初始化变量
+}
+
+
+void InitVariable(void)
+{
+	g_wTs=0;
+	g_wTms=0;//
+	g_lPEK1=g_lPEK2=0;
+	g_lVEK1=g_lVEK2=g_lVEK3=0;
+	g_nIEK=0;g_nIEK1=0;
+	g_nIntegar=0;
+	g_lI_K_P=0;
+	g_nZeroRunState=0;
+
+	g_nMainState=MAIN_STATE_INIT;
+}
+
+void CfgVariable(void)
+{
+	//gPLCCtl.doConnect[0]=0;
+	gPLCCtl.PulseWidth[0]=0;
+	gPLCCtl.PulseWidthDelay[0]=FULL_VOLTAGE_ACT_TIME;
+	gPLCCtl.PulsePeroid[0]=(DO_PWM_TIM_PERIOD-1);
+	/*MOTOR Group*/ 
+	gPLCCtl.ssp = gPara.AcMotorTypicalSpdF;				//电机最大速度
+	gPLCCtl.enc = gPara.EncoderLineNum*4;					//编码器分辨率（线数x4）
+	gPLCCtl.SwapEncoderDir = gPara.ConBit1&0x01;	//编码器换向
+	gPLCCtl.PL = 0;//gPara.AcMotorDriveMapNominalRatio;		//15
+	gPLCCtl.P2 = 33;//gPara.AcMotorDriveMapDelta1Ratio;		//16
+	gPLCCtl.P3 = 66;//gPara.AcMotorDriveMapDelta2Ratio;		//17
+	gPLCCtl.PH = 99;//gPara.AcMotorDriveMapDelta4Ratio;		//18
+	gPLCCtl.PL_deg = 0;//gPara.AcMotorRegenMapNominalRatio;		//20
+	gPLCCtl.P2_deg = 30;//gPara.AcMotorRegenMapDelta1Ratio;		//21
+	gPLCCtl.P3_deg = 60;//gPara.AcMotorRegenMapDelta2Ratio;		//22
+	gPLCCtl.PH_deg = 90;//gPara.AcMotorRegenMapDelta4Ratio;		//23
+//	gPLCCtl.Redundant = gPara.ThrottleType;		//101	 方向输入类型 
+
+	/*CONTROLER Group*/ 
+
+	gPLCCtl.Mp = gPara.PosKp*100;  //192    M_Kp
+	gPLCCtl.Vp = gPara.SpeedWc*200;	//51   V_Kp
+	gPLCCtl.Vi = gPara.SpeedWit*10;  //52	
+	gPLCCtl.Ip = gPara.TorFilt1W;   //53   =400
+	gPLCCtl.Ii = gPara.TorFilt2W;	 //54  =80
+	
+	gPLCCtl.MotorMaxCurent = gPara.KvffCurrent*1000;   //56 电机过载电流	
+	gPLCCtl.MaxCurentTime = gPara.KvffBuildTime;  //57 电机过载时间	
+	gPLCCtl.acc = gPara.FullAccTimeHs;  //63  加速度时间
+	gPLCCtl.dec = gPara.NeutralDecTimeHs;  //66 减速度时间
+	/*CONTROLER Group*/ 
+	gPLCCtl.RotateDir = (gPara.ConBit1>>1)&0x01;	//电机反向	
+	gPLCCtl.ctrl_mode = gPara.MotorType; 					//6#	 运行模式
+	gPLCCtl.scs = SCS1_AV; 					//信号源类型
+	
+	gPLCCtl.sov = gPara.SpeedRate1*gPLCCtl.ssp/100; 	//77    回中速度 %
+	gPLCCtl.MaxRunSpeed = gPara.SpeedRate2; 					//78   行走电机最大速度 %
+	gPLCCtl.AngleLimit1 = gPara.SpeedRate3; 					//79    行走电机速度限制角度1 
+	gPLCCtl.AngleLimit2 = gPara.SpeedRate4; 					//80    行走电机速度限制角度2
+	if(gPLCCtl.AngleLimit2<gPLCCtl.AngleLimit1)	gPLCCtl.AngleLimit2=gPLCCtl.AngleLimit1;	
+	
+  gPLCCtl.Command_left = gPara.ThrottleMinVoltage;		//100  左输入死区电压	
+  gPLCCtl.Command_right = gPara.ThrottleMaxVoltage;		//101  右输入死区电压		
+	gPLCCtl.Command_centre = gPara.ThrottleMap;	//2.1V
+	gPLCCtl.ThrottleType = gPara.ThrottleType;
+	
+//	gPara.AcMotorDriveCurrentLimitRatio;
+	gPLCCtl.spc=MAX_CURRENTLIMIT;	//峰值电流 40A
+	gPLCCtl.scc=(MAX_CURRENTLIMIT*gPara.AcMotorDriveCurrentLimitRatio)/32767;  //额定电流 20A
+
+	/*STEER Group*/ 
+ 	gPLCCtl.GearDen = gPara.PosGearDen;		  //126
+  gPLCCtl.GearNum = gPara.PosGearNum;			//127	
+	
+	/*CAN Group*/ 
+ 	gPLCCtl.CANEnable = gPara.CanEn ;		//130
+  gPLCCtl.Addr = gPara.StationAddr;		//135
+
+	/**********************************************************/
+	gPLCCtl.HomeSwiState = 0;
+	gCRam.bHomeDir = (gPara.SteerBit>>1)&0x01;
+	gPLCCtl.IsHomeEna = (gPara.SteerBit>>2)&0x01;	//回中使能 0:不使能  1:使能
+	gPLCCtl.HomeMode = (gPara.SteerBit>>5)&0x01;	//回中开关模式 0:面域  1:单点	
+	gPLCCtl.TrigType = (gPara.SteerBit>>6)&0x01;	//回中开关类型 0:PNP  1:NPN	
+	gPLCCtl.SafeLockHome = (gPara.SteerBit >> 7) & 0x01; //互锁回中： 0;互锁 1：不互锁
+	gCRam.n1RPM = gPLCCtl.enc/60;
+	gCRam.NewMod = gPLCCtl.ctrl_mode;	
+	gCRam.NewScs = gPLCCtl.scs;	
+	setDataBitGroup(gCRam.SI,MOD,gPLCCtl.ctrl_mode);
+	setDataBitGroup(gCRam.SI,SCS,gPLCCtl.scs);
+
+	gCRam.nMav=(long)gPara.ThrottleOfs*4096/3300;  //100mV死区
+	//	g_nMav=(long)gPLCCtl.smav*4096/3300;
+
+	gCRam.MaxSpeed=(INT32S)gPLCCtl.ssp*gPLCCtl.enc/60;	//
+	//	g_lAcceleration=((long)gPLCCtl.acc*gPLCCtl.enc); 
+	gCRam.Acceleration=((long)gCRam.MaxSpeed/gPLCCtl.acc);
+	if(gCRam.Acceleration<1) gCRam.Acceleration=1;		
+
+	gCRam.PwmAcc=MAX_PWM*1000/gPLCCtl.acc;  //
+	if(gCRam.PwmAcc<1)	 gCRam.PwmAcc=1;
+	gCRam.PwmDec=MAX_PWM*1000/gPLCCtl.dec;  //
+	if(gCRam.PwmDec<1)	 gCRam.PwmDec=1;
+
+	gPLCCtl.AutoManuelMode = 0;  //手动模式
+	gPLCCtl.pmod = 0;
+
+	gPLCCtl.doDataOut[FAULT_OUT] = 0;  //给fault使能信号
+	gPLCCtl.doDataOut[FAULT_OUT_RESET] = 0;
+	gPLCCtl.doDataOut[LOCK_OUT]=1;  //互锁信号
+	gPLCCtl.doDataOut[SOUT1]=0;
+	gPLCCtl.doDataOut[SOUT2]=0;	
+	gPLCCtl.CycleLimit = (INT32S)gPLCCtl.enc*gPLCCtl.GearNum/gPLCCtl.GearDen;    //机械一圈对应的脉冲数	
+	#ifdef HOME_ZERO
+			gPLCCtl.sop = gPLCCtl.CycleLimit/2;  //180度 ±0.5圈
+	#else
+			gPLCCtl.sop = gPLCCtl.CycleLimit;  //360度 ±1圈
+	#endif		
+	gPLCCtl.FollowingErr=	gPLCCtl.CycleLimit/360*10; //10 degrees		
+	gCRam.MaxHomeOffset = gPLCCtl.CycleLimit/4; //90 degrees	
+	gPLCCtl.MaxPosition = gPLCCtl.CycleLimit/2;
+	if((gPara.MiddleOfs>-gCRam.MaxHomeOffset)&&(gPara.MiddleOfs<gCRam.MaxHomeOffset))
+		gCRam.ZeroOffset=gPara.MiddleOfs;
+	else
+		gCRam.ZeroOffset=0;
+	gPLCCtl.HighSpeedRatio = gPara.HighSpeedRatio;
+	gPLCCtl.TrqPreloadCancelDelay = gPara.TrqPreloadCancelDelay;
+	gCRam.HomeOffset = gPLCCtl.CycleLimit*(INT32S)gPara.MiddleDirErr/360;
+	if(gPara.MiddleDirErr>0)
+		gCRam.PosOffset = gPara.MiddleDirErr;
+	else
+		gCRam.PosOffset = 0;
+  gPLCCtl.MaxPWMOut = MAX_PWM;
+	gPLCCtl.IR_Offset = gPLCCtl.scc*gPara.StatorResist/1000/RATE_VOLTAGE;
+	gCRam.PosCmdFor90Degree = gPara.PosCmdFor90Degree;
+	gCRam.PosCmdForMaxDegree = gPara.PosCmdLimitCw;
+	gCRam.PosCmdForRvsMaxDegree = gPara.PosCmdLimitCcw;
+	//过流 过载AD值
+	gCRam.OverIAd = GetAdFromI(gPLCCtl.spc*0.95);
+	gCRam.OverIAd_M=-gCRam.OverIAd;
+	gCRam.OverloadAd = GetAdFromI(gPLCCtl.scc*0.95);
+	if(gCRam.OverloadAd>gCRam.OverIAd)gCRam.OverloadAd=gCRam.OverIAd;
+	gCRam.OverloadAd_M=-gCRam.OverloadAd;
+	
+	
+	gCRam.MaxOverLoadCurrent = _IQ(ESP_OVER_CUREENT/STD_CURRENT);	//for DC motor
+	gCRam.OverLoadCurrent2M = _IQ(RATE_2M_CURRENT*0.95/STD_CURRENT);	//for DC motor
+    
+    gPLCCtl.ReMotorEnc = (gPara.RedundantParaConfig >> 0) & 0x00;        /* Bit0: 0:双电机编码器       1:单电机编码器 */
+    gPLCCtl.ReCmdEnc = (gPara.RedundantParaConfig >> 1) & 0x01;          /* Bit1: 0:双编码器方向盘     1:单编码器方向盘 */
+    gPLCCtl.RePotentiometer= (gPara.RedundantParaConfig >> 2) & 0x01;   /* Bit2: 0:双电位计           1:单电位计*/
+    gPLCCtl.ReFault = (gPara.RedundantParaConfig >> 3) & 0x01;           /* Bit3: 0:有Faultout过流     1:无Faultout过流*/
+    gPLCCtl.ReHomeSwi = (gPara.RedundantParaConfig >> 4) & 0x01;          /* Bit4: 0:冗余回中开关判断    1:不冗余判断*/
+}
+

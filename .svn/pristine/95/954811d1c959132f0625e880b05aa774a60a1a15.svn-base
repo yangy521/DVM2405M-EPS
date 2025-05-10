@@ -1,0 +1,45 @@
+/*******************************************************************************
+* Filename: iTimer.h	                                             	 		   *
+* Description:											   			 		   *
+* Author:                                                           		   *
+* Date:     														 		   *
+* Revision:															 		   *
+*******************************************************************************/
+
+#include		"KSDsys.h"
+
+/* 定义时间计时器 */
+#define Timer_ICOM								0	//ICOM通信定时器
+									//1~6从站发送定时器（Timer_Post)
+#define Timer_Connect          			5  //从站连接定时器
+//#define Timer_Connect          			6  //从站连接定时器
+#define Timer_MacIDCheck        	  14  //MAC检测定时器
+#define Timer_System								16
+#define Timer_iCAN									17
+#define Timer_RelayCheck						18	//继电器打开驱动反馈检测
+#define Timer_HeartBeat          	  19	//上位机心跳
+#define Timer_VBusCheck							20	//母线电压检测定时器
+#define Timer_VBusAbnormalCheck			21	//母线电压异常检测定时器
+#define Timer_RelayDelay            22
+#define Timer_SvOffDelay            23  //SvOff延时定时器
+#define	Timer_BrakeDelay						24  
+#define Timer_ZeroThrottleDelay            25  //零踏板输入检测定时器
+#define Timer_SoftEnaDelay					26 //软件使能延时定时器
+
+//定义网络定时器结构体
+typedef struct _tNetTimer
+{
+	unsigned long ulTimerCount;		//	时间计时器
+	unsigned long ulDeadline;			//	超时时限
+	tBoolean  bIsStart;						//	是否启动
+	tBoolean  bIsOvertime;				//	是否超时
+}tNetTimer;
+
+//变量声明
+extern tNetTimer netTimer[32];		//
+
+extern void netTimerInit(void);//网络定时器初始化
+extern void netTimerUpdate(unsigned int us);//网络事件定时器计时
+extern void SetNetTimer(unsigned char ucTimerID,unsigned long ulDeadline);//启动网络定时器
+extern void ResetNetTimer(unsigned char ucTimerID);//复位网络定时器
+extern void KillNetTimer(unsigned char ucTimerID); //删除网络定时器

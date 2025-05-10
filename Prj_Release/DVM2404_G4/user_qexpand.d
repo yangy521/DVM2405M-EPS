@@ -1,0 +1,9 @@
+dvm2404_g4\user_qexpand.o: ..\CANopen\user_QExpand.c
+dvm2404_g4\user_qexpand.o: ..\CANopen\./mco.h
+dvm2404_g4\user_qexpand.o: ..\CANopen\./mcohw.h
+dvm2404_g4\user_qexpand.o: ../Inc/para.h
+dvm2404_g4\user_qexpand.o: ../Inc/KSDsys.h
+dvm2404_g4\user_qexpand.o: ..\Lib\IQmathLib.h
+dvm2404_g4\user_qexpand.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+dvm2404_g4\user_qexpand.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+dvm2404_g4\user_qexpand.o: ../Inc/iCAN.h

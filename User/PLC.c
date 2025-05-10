@@ -1,0 +1,457 @@
+#include "PLC.h"
+#include "ican.h"
+#include "iTimer.h"
+#include "message.h"
+#include "Device.h"
+#include "PLCLogic.h"
+#include "Packet.h"
+#include "MC_MotorControl_Layer.h"
+#include "iCANLogic.h"
+#include "CommonRam.h"
+#include "Temprature.h"
+#include	"canSTM32F4.h"
+#include "stm32g473xx.h"
+#include	"USER_NBRY.h"
+#include	"USER_ZDLDAGV.h"
+#include	"USER_QEXPANDAGV.h"
+#include	"USER_ZHONGLI.h"
+#include  "Canopen_HangChaApp.h"
+#include  "USER_LINDE_STEER.h"
+
+//函数指针
+void (*PDOTx_Func)(void);
+
+void Null(void)
+{
+}
+
+void memzero(INT8U *pData, INT32S sizeOfByte)
+{
+	while (((INT32U)pData & 0x3) != 0)
+	{
+		if (sizeOfByte > 0)
+		{
+			*((INT8U*)pData) = 0;
+			pData++;
+			sizeOfByte--;
+		}
+		else
+			break;
+	}
+	while (sizeOfByte >= 4)
+	{
+		*((INT32U*)pData) = 0;
+		pData += 4;
+		sizeOfByte -= 4;
+	}
+	while (sizeOfByte > 0)
+	{
+		*((INT8U*)pData) = 0;
+		pData++;
+		sizeOfByte--;
+	}
+}
+
+
+
+void InitPLCLogic(void)
+{
+		//DI
+	memzero((INT8U*)&gPLCCtl.diDataIn,sizeof(gPLCCtl.diDataIn));
+	//AI
+	memzero((INT8U*)&gPLCCtl.aiDataIn,sizeof(gPLCCtl.aiDataIn));
+	
+	gPLCCtl.doDataOut[LED_Y]=0;	//
+	gPLCCtl.doDataOut[LED_R]=0;	//
+	gPLCCtl.doDataOut[LOCK_OUT]=0;	//
+	//gPLCCtl.doDataOut[DRIVER_EN]=1;	//	 //低有效
+
+	LEDInit();
+	TmpInit();
+	netTimerInit();	
+	PacketInit();
+	
+	gPLCCtl.PlcCount = 0;
+	gPLCCtl.gEepromFlag = 0;
+	//设定PDOTx函数指针
+	PDOTx_Func = Null;
+
+#if(USER_TYPE == USER_NBRY_STEER)
+	PDOTx_Func = PDO_Prco;
+#endif	
+#if(USER_TYPE == USER_STEER_JSKL)
+	PDOTx_Func = PDO_Prco;
+#endif		
+#if(USER_TYPE == USER_QEXPANDAGV)
+	PDOTx_Func = QEXPAND_AGV_STEER;
+#endif
+#if(USER_TYPE == USER_YUTOU)
+	PDOTx_Func = PDO_Prco;
+#endif		
+#if(USER_TYPE == USER_ZHONGLI_STEER_G4)
+	PDOTx_Func = PDO_Prco_ZHONGLI;
+#endif	
+
+#if(USER_TYPE == USER_NBRY_STEER_G4)
+	PDOTx_Func = PDO_Prco;
+#endif
+
+#if(USER_TYPE == USER_HANGCHA_DDTBC_STEER)
+	PDOTx_Func = PDO_Prco_HANGCHA;
+#endif
+#if(USER_TYPE == USER_LINDE_DDTBC_STEER)
+	PDOTx_Func = PDO_Prco_LINDE;
+#endif	
+}
+
+//系统进程处理
+void Sys_Prco(void)
+{
+	static INT16U WDGOldState = 0;
+	static INT16U WDG_TimeOut = 0;
+ 
+	gPLCCtl.PlcCount++;	
+	WATCH_DOG_OUT_TOGGLE();
+	 
+	if(READ_WATCH_DOG_IN()  != WDGOldState)
+	{
+//  gPLCCtl.doDataOut[DRIVER_EN] = 0;
+		WDG_TimeOut = 0;
+		WDGOldState = READ_WATCH_DOG_IN();
+	}
+	else
+	{
+		WDG_TimeOut ++;
+		if(WDG_TimeOut > 100)   //5(ms)*100 =500ms
+		{
+			gPLCCtl.doDataOut[DRIVER_EN] = 1;
+		}
+	}	
+	WDGOldState = READ_WATCH_DOG_IN();
+	
+	TmpProcess();		//计算温度
+	MCL_ChkPowerStatue();  //状态检测	
+	
+	#if ((UART_LOGIC_TYPE == UART_LOGIC_MASTER) || (UART_LOGIC_TYPE == UART_LOGIC_SLAVE))
+	if ((gPLCCtl.PlcCount & 7) == 0)
+	{
+		UARTPkt_DataInManage();
+		UARTPkt_DataLogicManage();
+	}
+	#endif
+	LEDProcess();		//LED blink
+	LocalDO();			//输出更新		
+	LocalDI();			//输入更新			
+	UpdataPlcDataFromUart();
+	UpdataUartDataFromPlc();
+	GetCmdPercent();	//模拟指令转换为指令百分比
+	
+	Protection(); 	//控制保护
+
+	#if ((UART_LOGIC_TYPE == UART_LOGIC_MASTER) || (UART_LOGIC_TYPE == UART_LOGIC_SLAVE) || (UART_LOGIC_TYPE == UART_LOGIC_MCU))
+		if ((gPLCCtl.PlcCount & 7) == 2)
+			UARTPkt_DataOutManage();
+	#endif		
+
+		if(g_nMainState ==MAIN_STATE_ZEROAUTO)//	执行回中过程
+		{	
+			Homing();  
+		}
+		else if (g_nMainState ==MAIN_STATE_RUN)//正常运行状态
+		{
+			if(gCRam.ModCh + gCRam.ScsCh)
+			{
+				ChangeModScs(gCRam.NewMod,gCRam.NewScs);   
+				gCRam.ModCh=gCRam.ScsCh=0;		
+			}	
+			//将各种信号换算成目标参数
+			GetNewTargetValue();
+		}
+		
+		//配置模式关闭PWM输出
+		if(SL_CHK(PLC_STOP_MOVE))
+		{			
+//			gCRam.PwmValue=0;  //PWM输出为0
+			gCRam.bPwmClose=1;  //关闭PWM输出
+			g_nMainState = MAIN_STATE_STOP; //处于非运行状态
+		}
+			
+}	
+
+//系统进程处理
+void iCAN_Prco(void)
+{
+	unsigned char  PcProcType;		//PC process type
+	unsigned char  HmiProcType;	//HMI process type
+	static INT8U PlcCount=0;
+	
+	PlcCount++;
+	if((PlcCount & 1) == 0)
+	{
+		#if IS_LOGIC_MASTER(LOGIC_TYPE)
+		{	
+			ICANDataInManage_Master();	//
+			ICANLogicIn_Master();	//
+			ICANNetManage_Master();	
+		}
+		#endif //IS_LOGIC_MASTER
+		#if IS_LOGIC_SLAVE(LOGIC_TYPE)
+		{
+			ICANDataInManage_Slave();	//
+			ICANLogicIn_Slave();	//
+			ICANNetManage_Slave();
+		}
+		#endif //IS_LOGIC_SLAVE
+
+		GetSysProcedure(&PcProcType,&HmiProcType);	//获取当前系统进程ID
+
+		DOProcess();	 //内部控制数据 ---> 参数表gPara
+
+		//仪表监控及配置
+		switch(HmiProcType)
+		{
+		#if IS_LOGIC_MASTER(LOGIC_TYPE)
+			case HMI_IDLE_MODE_STATESETTING:
+				HMIIdle_Master();
+				break;
+			case HMI_MONITOR_MODE_STATESETTING:
+				HMIMonitor_Master();
+				break;
+			case HMI_CONFIG_MODE_STATESETTING:
+				HMIConfig_Master();
+				SL_SET(PLC_STOP_MOVE);
+				break;
+			case HMI_TUNE_MODE_STATESETTING:
+				ICANSysMatch();
+				break;
+			default :
+				HMIPcIdle_Master();
+				break;
+		#endif //IS_LOGIC_MASTER
+			
+		#if IS_LOGIC_SLAVE(LOGIC_TYPE)
+			case HMI_IDLE_MODE_STATESETTING:
+				HMIIdle_Slave();
+				break;
+			case HMI_MONITOR_MODE_STATESETTING:
+				HMIMonitor_Slave();
+				break;
+			case HMI_CONFIG_MODE_STATESETTING:
+				HMIConfig_Slave();
+				SL_SET(PLC_STOP_MOVE);
+				break;
+			case HMI_TUNE_MODE_STATESETTING:
+				ICANSysMatch();
+				break;
+			default :
+				HMIPcIdle_Slave();
+				break;
+		#endif //IS_LOGIC_SLAVE
+		}
+		
+		//PC监控及配置
+		switch(PcProcType)
+		{
+		#if IS_LOGIC_MASTER(LOGIC_TYPE)
+			case PC_IDLE_MODE_STATESETTING:
+				PCIdle_Master();
+				break;
+			case PC_MONITOR_MODE_STATESETTING:
+				PCMonitor_Master();
+				break;
+			case PC_CONFIG_MODE_STATESETTING:
+				PCConfig_Master();
+				SL_SET(PLC_STOP_MOVE);
+				break;
+			case PC_TUNE_MODE_STATESETTING:
+				ICANSysMatch();
+				break;
+			default :
+				PCIdle_Master();
+				break;
+		#endif //IS_LOGIC_MASTER
+			
+		#if IS_LOGIC_SLAVE(LOGIC_TYPE)
+			case PC_IDLE_MODE_STATESETTING:
+				PCIdle_Slave();
+				break;
+			case PC_MONITOR_MODE_STATESETTING:
+				PCMonitor_Slave();
+				break;
+			case PC_CONFIG_MODE_STATESETTING:
+				PCConfig_Slave();
+				SL_SET(PLC_STOP_MOVE);
+				break;
+			case PC_TUNE_MODE_STATESETTING:
+				ICANSysMatch();
+				break;
+			default :
+				PCIdle_Slave();
+				break;
+		#endif //IS_LOGIC_SLAVE
+		}
+
+		#if IS_LOGIC_MASTER(LOGIC_TYPE)
+		{	
+			ICANLogicOut_Master();	
+			ICANDataOutManage_Master();	//	
+		}
+		#endif //IS_LOGIC_MASTER
+		
+		#if IS_LOGIC_SLAVE(LOGIC_TYPE)
+		{
+			ICANLogicOut_Slave();	
+			ICANDataOutManage_Slave();	//
+		}
+		#endif //IS_LOGIC_SLAVE
+	}
+	
+	PDOTx_Func();  //PDO发送函数
+
+	CANFrmSend(&canFrmTxBuffer);	
+}	
+
+
+/*******************************************************************************
+* FunctionName: LEDInit
+* Description:  LED初始化状态
+* Input: None
+* Output: None
+*
+* Author: Young
+* Date:
+* Revision:
+*******************************************************************************/
+void LEDInit(void)
+{
+	gPLCCtl.LedCountHead = 0;
+	gPLCCtl.LedCountRep = 0;
+	gPLCCtl.LedCount = 0;
+	gPLCCtl.LedBlinkPeriod = 0;	
+	LedStateShow(LED_YELLOW_RESET | LED_RED_RESET);
+}
+
+/*******************************************************************************
+* FunctionName: LedStateShow(INT16U ucState)
+* Description: LED显示逻辑
+* Input: 
+* Output: 
+*
+* Author: Young
+* Date:
+* Revision:
+*******************************************************************************/
+void LedStateShow(INT16U ucState)
+{
+	//yellow
+	if (ucState & LED_YELLOW_SET)
+	{
+		gPLCCtl.doDataOut[LED_Y] = 1;
+	}
+	else if (ucState & LED_YELLOW_RESET)
+	{
+		gPLCCtl.doDataOut[LED_Y] = 0;
+	}
+	else if (ucState & LED_YELLOW_BLINK)
+	{
+		gPLCCtl.doDataOut[LED_Y] ^= 1;
+	}
+
+	//red
+	if (ucState & LED_RED_SET)
+	{
+		gPLCCtl.doDataOut[LED_R] = 1;
+	}
+	else if (ucState & LED_RED_RESET)
+ 
+	{
+		gPLCCtl.doDataOut[LED_R] = 0;
+	}
+	else if (ucState & LED_RED_BLINK)
+	{
+		gPLCCtl.doDataOut[LED_R] ^= 1;
+	}
+}
+
+
+/*******************************************************************************
+* FunctionName: void LEDProcess(void)
+* Description:LED报警处理  
+* Input: 
+* Output: 
+*
+* Author:
+* Date:
+* Revision:
+*******************************************************************************/
+void LEDProcess(void)
+{
+	//gCRam.ErrCode=99; //23,1,9,10,11,15,19,20,99 
+	if (gPLCCtl.LedBlinkPeriod >= LED_BLINK_PERIOD)
+	{
+		gPLCCtl.LedBlinkPeriod = 0;
+		if (gPLCCtl.LedCount > 0)  //First, finish current process
+		{
+			if (gPLCCtl.LedCountHead <= 0) //Head over
+			{
+				if (gPLCCtl.LedCount >= 10) //digit 10
+				{
+					if (gPLCCtl.LedCountRep != 0)
+					{
+						LedStateShow(LED_YELLOW_BLINK | LED_RED_RESET);
+						gPLCCtl.LedCountRep = 0;
+						gPLCCtl.LedCount -= 10;
+					}
+					else
+					{
+						gPLCCtl.LedCountRep = 1;
+						LedStateShow(LED_YELLOW_BLINK | LED_RED_RESET);
+					}
+				}
+				else  //digit 1
+				{
+					if (gPLCCtl.LedCountRep != 0)
+					{
+						LedStateShow(LED_YELLOW_RESET | LED_RED_BLINK);
+						gPLCCtl.LedCountRep = 0;
+						gPLCCtl.LedCount -= 1;
+					}
+					else
+					{
+						gPLCCtl.LedCountRep = 1;
+						LedStateShow(LED_YELLOW_RESET | LED_RED_BLINK);
+					}
+				}
+			}
+			else //Head delay
+			{
+				gPLCCtl.LedCountHead--;
+			}
+		}
+		else if (gPLCCtl.ErrCode != 0) //Second,Err
+		{
+			gPLCCtl.LedCount = gPLCCtl.ErrCode;
+			gPLCCtl.LedCountRep = 0;
+			gPLCCtl.LedCountHead = 2;
+			LedStateShow(LED_YELLOW_RESET | LED_RED_RESET);
+		}
+		else if (gPLCCtl.AlmCode != 0) //Third, Alm 
+		{
+			gPLCCtl.LedCount = gPLCCtl.AlmCode;
+			gPLCCtl.LedCountRep = 0;
+			gPLCCtl.LedCountHead = 2;
+			LedStateShow(LED_YELLOW_RESET | LED_RED_RESET);
+		}
+		else //No Err & No Alm
+		{
+			gPLCCtl.LedCount = 0;
+			gPLCCtl.LedCountRep = 0;
+			gPLCCtl.LedCountHead = 2;
+			LedStateShow(LED_YELLOW_SET | LED_RED_RESET);
+		}
+	}
+	else
+	{
+		gPLCCtl.LedBlinkPeriod += PLC_PERIOD;
+	}
+}

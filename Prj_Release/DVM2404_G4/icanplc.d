@@ -1,0 +1,10 @@
+dvm2404_g4\icanplc.o: ..\Plc\iCANPlc.c
+dvm2404_g4\icanplc.o: ../Inc/iCANPlc.h
+dvm2404_g4\icanplc.o: ../Inc/KSDsys.h
+dvm2404_g4\icanplc.o: ..\Lib\IQmathLib.h
+dvm2404_g4\icanplc.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+dvm2404_g4\icanplc.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+dvm2404_g4\icanplc.o: ../Inc/iCAN.h
+dvm2404_g4\icanplc.o: ../Inc/PARA.h
+dvm2404_g4\icanplc.o: ../Inc/CommonRam.h
+dvm2404_g4\icanplc.o: ../Inc/iCANLogic.h

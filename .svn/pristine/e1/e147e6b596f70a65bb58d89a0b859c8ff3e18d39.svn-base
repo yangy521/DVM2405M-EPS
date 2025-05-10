@@ -1,0 +1,380 @@
+/*******************************************************************************
+* Filename: uartSTM32F0.c 	                                    	     		   *
+* Description: 							           *
+* Author:                                                                      *
+* Date: 															           *
+* Revision:															           *																	           *
+*******************************************************************************/
+#include 	"main.h"
+#include		"device.h"
+#include		"uartSTM32F4.h"
+
+//UART2
+tUARTBuffer uart2RxBuffer;
+tUARTBuffer uart2TxBuffer;
+
+#ifdef UART_DMA_RX_ENA
+INT8U g_uart1DmaRXBuf[UART_DMARX_SIZE];
+INT8U g_uart1DmaTXBuf[UART_DMATX_SIZE];
+#endif 
+
+//UART3
+tUARTBuffer uartRxBuffer;
+tUARTBuffer uartTxBuffer;
+
+//INT8U g_uart3DmaRXBuf[UART_DMARX_SIZE];
+//INT8U g_uart3DmaTXBuf[UART_DMATX_SIZE];
+
+
+//读UART数据缓冲区
+unsigned char UARTReadBuffer (tUARTBuffer  *pBuffer, unsigned char *ucByte)
+{
+	if (pBuffer->ucRead != pBuffer->ucWrite)
+	{
+		*ucByte = pBuffer->ucBufferData[pBuffer->ucRead];
+		pBuffer->ucRead++;
+		if (pBuffer->ucRead >= sizeof(pBuffer->ucBufferData)/sizeof(pBuffer->ucBufferData[0]))
+		{
+			pBuffer->ucRead = 0;
+		}
+		return NOT_EMPTY;
+	}
+	else
+	{
+	  return EMPTY;
+	}
+}
+
+//写UART数据缓冲区
+unsigned char UARTWriteBuffer (tUARTBuffer  *pBuffer, unsigned char  ucByte)
+{
+	signed int tempWrite;
+  tempWrite = pBuffer->ucWrite + 1;
+	if (tempWrite >= sizeof(pBuffer->ucBufferData)/sizeof(pBuffer->ucBufferData[0]))
+	{
+		tempWrite = 0;
+	}
+	if (tempWrite != pBuffer->ucRead)
+	{
+		pBuffer->ucBufferData[pBuffer->ucWrite] = ucByte;					        /*  向接收缓冲区写数据 */
+		pBuffer->ucWrite = tempWrite; 
+		return NOT_FULL;
+	}
+	else
+	{
+		return FULL;
+	}	
+}
+
+unsigned short UARTGetBufLen(tUARTBuffer  *pBuffer)
+{
+	signed short len;
+	if ((len = pBuffer->ucWrite - pBuffer->ucRead) < 0)
+		len += sizeof(pBuffer->ucBufferData)/sizeof(pBuffer->ucBufferData[0]);
+	return len;
+}
+////给缓存器写len个字节
+unsigned char UARTWriteBufArray(tUARTBuffer *pBuffer,unsigned char *ucByteArray,unsigned short len)
+{
+	unsigned short i;
+	if(len < (sizeof(pBuffer->ucBufferData)/sizeof(pBuffer->ucBufferData[0]) - UARTGetBufLen(pBuffer)))
+	{
+		for(i=0;i<len;i++)
+		{
+			UARTWriteBuffer(pBuffer,ucByteArray[i]);
+		}
+		return C_NO_ERR;
+	}
+	else return C_NOACT;
+}
+
+//从缓存器读取len个字节
+unsigned char UARTReadBufArray(tUARTBuffer *pBuffer,unsigned char *ucByteArray,unsigned short len)
+{
+	unsigned short i;
+	if(len <= UARTGetBufLen(pBuffer))
+	{
+		for(i=0;i<len;i++)
+		{
+			UARTReadBuffer(pBuffer,ucByteArray+i);
+		}
+		return C_NO_ERR;
+	}
+	else return C_OVERFLOW;
+}
+
+//清空数据缓冲区
+void UARTBufFlush(tUARTBuffer *pBuffer)
+{
+	pBuffer->ucRead = pBuffer->ucWrite;
+}
+
+/*******************************************************************************
+* Name: UARTSend
+* Description: 串口数据发送
+* Input: pucBuffer:发送缓冲区地址；ucByte:发送字节数
+* Output: 0:Success;1:fail
+* Author:
+* Date:
+* Revision:
+*******************************************************************************/
+void UARTSend (tUARTBuffer  *pucBuffer)
+{
+#if (UART3_DRIVER_EN == 1)
+	UART_HandleTypeDef *huart = &huart3;
+	unsigned char data;
+
+#ifdef UART_DMA_TX_ENA
+	if(UARTReadBuffer(&uartTxBuffer, &ucData) == NOT_EMPTY)
+	{
+		HAL_UART_Transmit_IT(huart, &ucData,1);
+	}
+#else	
+	HAL_NVIC_DisableIRQ(USART3_IRQn);
+	if (READ_REG(huart->Instance->ISR) & UART_FLAG_TXE)
+	{
+		if (UARTReadBuffer(&uartTxBuffer,&data) != EMPTY)
+			huart->Instance->TDR = data;
+	}
+	HAL_NVIC_EnableIRQ(USART3_IRQn);
+#endif	
+#endif //#if (UART3_DRIVER_EN == 1)
+	
+}
+
+void UART2Send (tUARTBuffer  *pucBuffer)
+{
+#if (UART2_DRIVER_EN == 1)
+	UART_HandleTypeDef *huart = &huart2;
+	unsigned char data;
+	
+	HAL_NVIC_DisableIRQ(USART2_IRQn);
+	if (READ_REG(huart->Instance->ISR) & UART_FLAG_TXE)
+	{
+		if (UARTReadBuffer(&uart2TxBuffer,&data) != EMPTY)
+			huart->Instance->TDR = data;
+	}
+	HAL_NVIC_EnableIRQ(USART2_IRQn);
+
+#endif //#if (UART2_DRIVER_EN == 1)
+	
+}
+
+//UART中断处理
+#if (UART2_DRIVER_EN == 1)
+
+void UART2_IntHandler(void)
+{
+	UART_HandleTypeDef *huart = &huart2;
+  uint32_t isrflags   = READ_REG(huart->Instance->ISR);
+
+  uint32_t errorflags;
+  //uint32_t errorcode;
+
+	/* UART in mode Receiver ---------------------------------------------------*/
+	if ((isrflags & (USART_ISR_RXFT | UART_FLAG_RXFNE | USART_ISR_IDLE)) != 0U)
+	{
+		uint8_t data;
+		while (READ_REG(huart->Instance->ISR) & UART_FLAG_RXFNE)
+		{
+			data=READ_REG(huart->Instance->RDR); // 读取数据
+			UARTWriteBuffer(&uart2RxBuffer,data);	//把接收的数据写入数据接收缓存区
+		}
+		__HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_IDLEF);
+	}
+	
+  errorflags = (isrflags & (uint32_t)(USART_ISR_PE | USART_ISR_FE | USART_ISR_ORE | USART_ISR_NE | USART_ISR_RTOF));
+  /* If some errors occur */
+  if (errorflags != 0U)
+  {
+    /* UART parity error interrupt occurred -------------------------------------*/
+    if ((isrflags & USART_ISR_PE) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_PEF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_PE;
+    }
+
+    /* UART frame error interrupt occurred --------------------------------------*/
+    if ((isrflags & USART_ISR_FE) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_FEF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_FE;
+    }
+
+    /* UART noise error interrupt occurred --------------------------------------*/
+    if ((isrflags & USART_ISR_NE) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_NEF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_NE;
+    }
+
+    /* UART Over-Run interrupt occurred -----------------------------------------*/
+    if ((isrflags & USART_ISR_ORE) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_ORE;
+    }
+
+    /* UART Receiver Timeout interrupt occurred ---------------------------------*/
+    if ((isrflags & USART_ISR_RTOF) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_RTOF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_RTO;
+    }
+    return;
+  } /* End if some error occurs */
+
+
+  /* UART wakeup from Stop mode interrupt occurred ---------------------------*/
+  if ((isrflags & USART_ISR_WUF) != 0U)
+  {
+    __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_WUF);
+
+    return;
+  }
+
+  /* UART in mode Transmitter ------------------------------------------------*/
+  if ((isrflags & (USART_ISR_TXE_TXFNF | USART_ISR_TXFT)) != 0U)
+  {
+		uint8_t data;
+		while (READ_REG(huart->Instance->ISR) & USART_ISR_TXE_TXFNF)
+		{
+			if (UARTReadBuffer(&uart2TxBuffer,&data) != EMPTY)
+				huart->Instance->TDR = data;
+			else
+			{
+				break;
+			}
+		}
+		__HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_TCF);
+  }
+
+}
+#endif //#if (UART2_DRIVER_EN == 1)
+
+//UART中断处理
+#if (UART3_DRIVER_EN == 1)
+void UART3_IntHandler(void)
+{
+	UART_HandleTypeDef *huart = &huart3;
+  uint32_t isrflags   = READ_REG(huart->Instance->ISR);
+
+  uint32_t errorflags;
+  //uint32_t errorcode;
+
+	/* UART in mode Receiver ---------------------------------------------------*/
+	if ((isrflags & (USART_ISR_RXFT | UART_FLAG_RXFNE | USART_ISR_IDLE)) != 0U)
+	{
+		uint8_t data;
+		while (READ_REG(huart->Instance->ISR) & UART_FLAG_RXFNE)
+		{
+			data=READ_REG(huart->Instance->RDR); // 读取数据
+			UARTWriteBuffer(&uartRxBuffer,data);	//把接收的数据写入数据接收缓存区
+		}
+		__HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_IDLEF);
+	}
+	
+  errorflags = (isrflags & (uint32_t)(USART_ISR_PE | USART_ISR_FE | USART_ISR_ORE | USART_ISR_NE | USART_ISR_RTOF));
+  /* If some errors occur */
+  if (errorflags != 0U)
+  {
+    /* UART parity error interrupt occurred -------------------------------------*/
+    if ((isrflags & USART_ISR_PE) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_PEF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_PE;
+    }
+
+    /* UART frame error interrupt occurred --------------------------------------*/
+    if ((isrflags & USART_ISR_FE) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_FEF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_FE;
+    }
+
+    /* UART noise error interrupt occurred --------------------------------------*/
+    if ((isrflags & USART_ISR_NE) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_NEF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_NE;
+    }
+
+    /* UART Over-Run interrupt occurred -----------------------------------------*/
+    if ((isrflags & USART_ISR_ORE) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_ORE;
+    }
+
+    /* UART Receiver Timeout interrupt occurred ---------------------------------*/
+    if ((isrflags & USART_ISR_RTOF) != 0U)
+    {
+      __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_RTOF);
+
+      huart->ErrorCode |= HAL_UART_ERROR_RTO;
+    }
+    return;
+  } /* End if some error occurs */
+
+
+  /* UART wakeup from Stop mode interrupt occurred ---------------------------*/
+  if ((isrflags & USART_ISR_WUF) != 0U)
+  {
+    __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_WUF);
+
+    return;
+  }
+
+  /* UART in mode Transmitter ------------------------------------------------*/
+  if ((isrflags & (USART_ISR_TXE_TXFNF | USART_ISR_TXFT)) != 0U)
+  {
+		uint8_t data;
+		while (READ_REG(huart->Instance->ISR) & USART_ISR_TXE_TXFNF)
+		{
+			if (UARTReadBuffer(&uartTxBuffer,&data) != EMPTY)
+				huart->Instance->TDR = data;
+			else
+			{
+				break;
+			}
+		}
+		__HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_TCF);
+  }
+
+}
+
+#ifdef UART_DMA_TX_ENA
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if(huart == &huart1)
+	{
+		UARTSend(&uartTxBuffer);
+	}
+}
+#endif //#ifdef UART_DMA_TX_ENA
+
+#ifdef UART_DMA_RX_ENA
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	unsigned char ucData;
+//	if(huart == &huart1)
+	{
+//		HAL_UART_Receive_IT(huart, (uint8_t *)&g_uart1DmaRXBuf, FRAME_RX_LEN);
+		//UARTWriteBuffer(&uartRxBuffer,g_uart1DmaRXBuf[0]);	//把接收的数据写入CAN数据接收缓存区	
+		UARTWriteBufArray(&uartRxBuffer,(uint8_t *)&g_uart1DmaRXBuf, FRAME_RX_LEN);	//把接收的数据写入CAN数据接收缓存区			
+	}
+
+}
+#endif //#ifdef UART_DMA_RX_ENA
+
+
+#endif //#if (UART3_DRIVER_EN == 1)

@@ -1,0 +1,14 @@
+dvm2404_g4\ican_master.o: ..\Plc\iCAN_Master.c
+dvm2404_g4\ican_master.o: ../Inc/iCAN.h
+dvm2404_g4\ican_master.o: ../Inc/KSDsys.h
+dvm2404_g4\ican_master.o: ..\Lib\IQmathLib.h
+dvm2404_g4\ican_master.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+dvm2404_g4\ican_master.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+dvm2404_g4\ican_master.o: ../Inc/iTimer.h
+dvm2404_g4\ican_master.o: ..\Plc\canSTM32F4.h
+dvm2404_g4\ican_master.o: ../Inc/message.h
+dvm2404_g4\ican_master.o: ../Inc/queue.h
+dvm2404_g4\ican_master.o: ../Inc/CommonRam.h
+dvm2404_g4\ican_master.o: ../Inc/iCANPlc.h
+dvm2404_g4\ican_master.o: ../Inc/Para.h
+dvm2404_g4\ican_master.o: ../Inc/PLCLogic.h

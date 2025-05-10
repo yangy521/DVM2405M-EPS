@@ -1,0 +1,10 @@
+dvm2404_g4\hourcount.o: ..\Plc\HourCount.c
+dvm2404_g4\hourcount.o: ../Inc/KSDsys.h
+dvm2404_g4\hourcount.o: ..\Lib\IQmathLib.h
+dvm2404_g4\hourcount.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+dvm2404_g4\hourcount.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+dvm2404_g4\hourcount.o: ../Inc/CommonRam.h
+dvm2404_g4\hourcount.o: ../Inc/iCANPlc.h
+dvm2404_g4\hourcount.o: ../Inc/Para.h
+dvm2404_g4\hourcount.o: ../Inc/iCAN.h
+dvm2404_g4\hourcount.o: ../Inc/HourCount.h

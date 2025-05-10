@@ -1,0 +1,13 @@
+dvm2404_g4\canopen_qexpandagvv04.o: ..\User\CanOpen_QexpandAgvV04.c
+dvm2404_g4\canopen_qexpandagvv04.o: ../Inc/iCAN.h
+dvm2404_g4\canopen_qexpandagvv04.o: ../Inc/KSDsys.h
+dvm2404_g4\canopen_qexpandagvv04.o: ..\Lib\IQmathLib.h
+dvm2404_g4\canopen_qexpandagvv04.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+dvm2404_g4\canopen_qexpandagvv04.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+dvm2404_g4\canopen_qexpandagvv04.o: ../Inc/CommonRam.h
+dvm2404_g4\canopen_qexpandagvv04.o: ../Inc/iCANPlc.h
+dvm2404_g4\canopen_qexpandagvv04.o: ../Inc/Para.h
+dvm2404_g4\canopen_qexpandagvv04.o: ../Inc/CanOpen_QexpandAgvV04.h
+dvm2404_g4\canopen_qexpandagvv04.o: ../Inc/canSTM32F4.h
+dvm2404_g4\canopen_qexpandagvv04.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+dvm2404_g4\canopen_qexpandagvv04.o: ../Inc/CanOpen_HangChaApp.h

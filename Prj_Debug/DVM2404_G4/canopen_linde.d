@@ -1,0 +1,10 @@
+dvm2404_g4\canopen_linde.o: ..\User\CanOpen_Linde.c
+dvm2404_g4\canopen_linde.o: ../Inc/iCAN.h
+dvm2404_g4\canopen_linde.o: ../Inc/KSDsys.h
+dvm2404_g4\canopen_linde.o: ..\Lib\IQmathLib.h
+dvm2404_g4\canopen_linde.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+dvm2404_g4\canopen_linde.o: D:\InstallFiles\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+dvm2404_g4\canopen_linde.o: ../Inc/CommonRam.h
+dvm2404_g4\canopen_linde.o: ../Inc/iCANPlc.h
+dvm2404_g4\canopen_linde.o: ../Inc/Para.h
+dvm2404_g4\canopen_linde.o: ../Inc/CanOpen_Linde.h

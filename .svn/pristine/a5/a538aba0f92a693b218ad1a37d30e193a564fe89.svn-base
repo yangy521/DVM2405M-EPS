@@ -1,0 +1,437 @@
+/*******************************************************************************
+* Filename: CanOpen_QexpandAgvV04.c	                                           *
+* Description:	QExpand_canopen_profile										   			 		   			 *
+* Author:  QExpand, Chow                                                       *
+* Date:  2019/05/24   														 		   *
+* Revision:	1.04														 		   *
+*******************************************************************************/
+
+//#include	"canSTM32F4.h"
+#include  "iCAN.h"
+#include	"CommonRam.h"
+#include "CanOpen_QexpandAgvV04.h"
+#include  <string.h>
+#include "CanOpen_HangChaApp.h"
+#if (CANOPEN_TYPE == CANOPEN_QEXPAND_AGV_V04)
+
+tQEXPANDAGV_PDO	QExpandAGV_PDO;
+#ifdef HANGCHAPP_ENABLE
+tHANGCHAAPP_PDO	HangCha_GDC_PDO;
+#endif
+
+#define ERRCODE_MAXLEN	5
+/*******************************************************************************
+* Name: ErrorCodeDisp
+* Description: //故障码周期循环发送，循环周期 40ms
+* Input: Current code
+* Output: 
+*					0- 
+*					1- Success
+* Author: Yang  
+* Date: 2025-01-20
+* Revision:V1.0
+*******************************************************************************/
+INT8U ErrorCodeDisp(INT8U ErrCode)
+{
+	static INT8U u8DispCnt;
+	static INT8U u8ErrorCodeNum=0;
+	static INT8U ErrorCodeSend[ERRCODE_MAXLEN]={0};
+	
+	if(ErrCode == 0) 
+	{		
+		u8ErrorCodeNum = 0;
+		memset(ErrorCodeSend,0,ERRCODE_MAXLEN);
+		return 0;
+	}
+	
+	u8DispCnt++; //显示循环计数器
+	
+	for(INT8U i=0; i< ERRCODE_MAXLEN; i++)
+	{
+		if(ErrorCodeSend[i] == ErrCode) //already in ErrorCodeSend
+		{
+			break;
+		}
+		else if(ErrorCodeSend[i]==0)//new error code 
+		{
+			ErrorCodeSend[i] = ErrCode;
+			u8ErrorCodeNum++;
+			break;
+		}
+	}
+	
+	if(u8ErrorCodeNum) //有故障码
+	{
+		return ErrorCodeSend[u8DispCnt % u8ErrorCodeNum]; //显示发送故障码
+	}
+	return 0;
+}
+/*******************************************************************************
+* Name: QExpandAGVInit
+* Description: Initialise the default data following power on
+* Input: pointer to the data structure
+* Output: 
+*					0- 
+*					1- Success
+* Author: 
+* Date: 
+* Revision:
+*******************************************************************************/
+INT16S CanOpenInit (void)
+{
+	INT32S index;
+	tQEXPANDAGV_PDO  *pQExpandAGV_PDO;
+	
+	pQExpandAGV_PDO = &QExpandAGV_PDO;
+	for (index = 0; index < sizeof(tQEXPANDAGV_PDO); index++)
+	{
+		((INT8U*)pQExpandAGV_PDO)[index] = 0;
+	}
+	return 1;
+}
+
+/*******************************************************************************
+* Name: CanOpenRxFrame
+* Description: Transmit buf data frame.  Called by plc per 5ms 
+* Input: none
+* Output: none
+*
+* Author: 
+* Date: 
+* Revision:
+*******************************************************************************/
+INT16S CanOpenRxFrame (tCANFrame  *pCANFrame)
+{
+	INT32S flag;
+	flag = 1;
+	#ifdef HANGCHAPP_ENABLE
+	tHANGCHAAPP_PDO *pCanopenPDO;
+	pCanopenPDO = &HangCha_GDC_PDO;
+	#endif
+	
+	if (pCANFrame->ucXID == 0)
+	{
+		if (pCANFrame->ulID == (NMT_MSG_ID))  //NMT message 
+		{
+			QExpandAGV_PDO.AgvMode = pCANFrame->ucData[0];
+		}
+#if (USER_TYPE == USER_ZHONGLI)
+		else if (pCANFrame->ulID == (QEXPANDAGVPDORX1_ID_OFS + 0x3c))
+#else
+		else if (pCANFrame->ulID == (QEXPANDAGVPDORX1_ID_OFS + QEXPANDAGVPDO_ID))		
+#endif
+		{
+			QExpandAGV_PDO.CanBuf_ID1X0R[0] = pCANFrame->ucData[0];
+			QExpandAGV_PDO.CanBuf_ID1X0R[1] = pCANFrame->ucData[1];
+			QExpandAGV_PDO.CanBuf_ID1X0R[2] = pCANFrame->ucData[2];
+			QExpandAGV_PDO.CanBuf_ID1X0R[3] = pCANFrame->ucData[3];
+			QExpandAGV_PDO.CanBuf_ID1X0R[4] = pCANFrame->ucData[4];
+			QExpandAGV_PDO.CanBuf_ID1X0R[5] = pCANFrame->ucData[5];
+			QExpandAGV_PDO.CanBuf_ID1X0R[6] = pCANFrame->ucData[6];
+			QExpandAGV_PDO.CanBuf_ID1X0R[7] = pCANFrame->ucData[7];
+			QExpandAGV_PDO.CanBuf_ID1X0R_Delay = 0;
+		}
+		else if (pCANFrame->ulID == (QEXPANDAGVPDORX2_ID_OFS + QEXPANDAGVPDO_ID))
+		{
+			QExpandAGV_PDO.CanBuf_ID1X1R[0] = pCANFrame->ucData[0];
+			QExpandAGV_PDO.CanBuf_ID1X1R[1] = pCANFrame->ucData[1];
+			QExpandAGV_PDO.CanBuf_ID1X1R[2] = pCANFrame->ucData[2];
+			QExpandAGV_PDO.CanBuf_ID1X1R[3] = pCANFrame->ucData[3];
+			QExpandAGV_PDO.CanBuf_ID1X1R[4] = pCANFrame->ucData[4];
+			QExpandAGV_PDO.CanBuf_ID1X1R[5] = pCANFrame->ucData[5];
+			QExpandAGV_PDO.CanBuf_ID1X1R[6] = pCANFrame->ucData[6];
+			QExpandAGV_PDO.CanBuf_ID1X1R[7] = pCANFrame->ucData[7];
+			QExpandAGV_PDO.CanBuf_ID1X1R_Delay = 0;
+		}
+		else if (pCANFrame->ulID == (QEXPANDAGVPDORX3_ID_OFS + QEXPANDAGVPDO_ID))
+		{
+			QExpandAGV_PDO.CanBuf_ID1X2R[0] = pCANFrame->ucData[0];
+			QExpandAGV_PDO.CanBuf_ID1X2R[1] = pCANFrame->ucData[1];
+			QExpandAGV_PDO.CanBuf_ID1X2R[2] = pCANFrame->ucData[2];
+			QExpandAGV_PDO.CanBuf_ID1X2R[3] = pCANFrame->ucData[3];
+			QExpandAGV_PDO.CanBuf_ID1X2R[4] = pCANFrame->ucData[4];
+			QExpandAGV_PDO.CanBuf_ID1X2R[5] = pCANFrame->ucData[5];
+			QExpandAGV_PDO.CanBuf_ID1X2R[6] = pCANFrame->ucData[6];
+			QExpandAGV_PDO.CanBuf_ID1X2R[7] = pCANFrame->ucData[7];
+			QExpandAGV_PDO.CanBuf_ID1X2R_Delay = 0;
+		}
+		else if(pCANFrame->ulID == (QEXPANDAGVSDORX_ID_OFS + 0x2c))
+		{
+			QExpandAGV_PDO.CanBuf_IDSDOR[0] = pCANFrame->ucData[0];
+			QExpandAGV_PDO.CanBuf_IDSDOR[1] = pCANFrame->ucData[1];
+			QExpandAGV_PDO.CanBuf_IDSDOR[2] = pCANFrame->ucData[2];
+			QExpandAGV_PDO.CanBuf_IDSDOR[3] = pCANFrame->ucData[3];
+			QExpandAGV_PDO.CanBuf_IDSDOR[4] = pCANFrame->ucData[4];
+			QExpandAGV_PDO.CanBuf_IDSDOR[5] = pCANFrame->ucData[5];
+			QExpandAGV_PDO.CanBuf_IDSDOR[6] = pCANFrame->ucData[6];
+			QExpandAGV_PDO.CanBuf_IDSDOR[7] = pCANFrame->ucData[7];
+			QExpandAGV_PDO.CanBuf_IDSDOR_Delay = 0;
+		}
+		#ifdef HANGCHAPP_ENABLE
+		else if (pCANFrame->ulID == (HANGCHAAPPPDO_RX670_ID_OFS))
+		{
+			pCanopenPDO->CanBuf_ID670R[0] = pCANFrame->ucData[0];
+			pCanopenPDO->CanBuf_ID670R[1] = pCANFrame->ucData[1];
+			pCanopenPDO->CanBuf_ID670R[2] = pCANFrame->ucData[2];
+			pCanopenPDO->CanBuf_ID670R[3] = pCANFrame->ucData[3];
+			pCanopenPDO->CanBuf_ID670R[4] = pCANFrame->ucData[4];
+			pCanopenPDO->CanBuf_ID670R[5] = pCANFrame->ucData[5];
+			pCanopenPDO->CanBuf_ID670R[6] = pCANFrame->ucData[6];
+			pCanopenPDO->CanBuf_ID670R[7] = pCANFrame->ucData[7];
+			pCanopenPDO->CanBufRxState |= RX670_CANBUFRXSTATE;
+		}
+		else if (pCANFrame->ulID == (HANGCHAAPPPDO_RX651_ID_OFS))
+		{
+			pCanopenPDO->CanBuf_ID651R[0] = pCANFrame->ucData[0];
+			pCanopenPDO->CanBuf_ID651R[1] = pCANFrame->ucData[1];
+			pCanopenPDO->CanBuf_ID651R[2] = pCANFrame->ucData[2];
+			pCanopenPDO->CanBuf_ID651R[3] = pCANFrame->ucData[3];
+			pCanopenPDO->CanBuf_ID651R[4] = pCANFrame->ucData[4];
+			pCanopenPDO->CanBuf_ID651R[5] = pCANFrame->ucData[5];
+			pCanopenPDO->CanBuf_ID651R[6] = pCANFrame->ucData[6];
+			pCanopenPDO->CanBuf_ID651R[7] = pCANFrame->ucData[7];
+			pCanopenPDO->CanBufRxState |= RX651_CANBUFRXSTATE;
+		}
+		#endif  //#ifdef HANGCHAPP_ENABLE	
+		else
+			flag = 0;
+	}
+	else
+	{
+		flag = 0;
+	}
+	
+	return flag;	
+}
+
+INT16S CanOpenRxFrameMonitor(void)
+{
+	if(QExpandAGV_PDO.AgvMode == 1)	//PDO Tx enable
+	{
+		if (QExpandAGV_PDO.CanBuf_ID1X0R_Delay >= RX_TIMEOUT)
+		{
+			QExpandAGV_PDO.CanBuf_ID1X0R[0] = 0;
+			QExpandAGV_PDO.CanBuf_ID1X0R[1] = 0;
+			QExpandAGV_PDO.CanBuf_ID1X0R[2] = 0;
+			QExpandAGV_PDO.CanBuf_ID1X0R[3] = 0;
+			QExpandAGV_PDO.CanBuf_ID1X0R[4] = 0;
+			QExpandAGV_PDO.CanBuf_ID1X0R[5] = 0;
+			QExpandAGV_PDO.CanBuf_ID1X0R[6] = 0;
+			QExpandAGV_PDO.CanBuf_ID1X0R[7] = 0;
+	//		QExpandAGV_PDO.CanBuf_ID1X0R_Delay = 0;		
+			QExpandAGV_PDO.AgvHeartBeatError = 1;
+		}
+		else
+		{
+			QExpandAGV_PDO.CanBuf_ID1X0R_Delay += 1;
+			QExpandAGV_PDO.AgvHeartBeatError = 0;
+		}
+	}
+	
+	return 1;
+}
+/*******************************************************************************
+* Name: Emergency_Msg_send
+* Description: Emergency message,send one time on alarm change
+* Input: none
+* Output: none
+*
+* Author: 
+* Date: 
+* Revision:
+*******************************************************************************/
+void Emergency_Msg_send(INT8U AlramCode)
+{
+	static INT8U AlramCodelast=0;
+	tCANFrame canFrame;	
+	
+//	if(QExpandAGV_PDO.AgvMode == 1)	//PDO Tx enable
+	{
+		if(AlramCode!=AlramCodelast)
+		{
+			canFrame.ulID = (EMERG_MSG_ID_OFS + QEXPANDAGVPDO_ID);
+			canFrame.ucXID=0;			//0 standard frame;  1 extended frame
+			canFrame.ucDataLength=4;	
+
+			canFrame.ucData[0] = 0;
+			canFrame.ucData[1] = 0;
+			if(AlramCode==0)
+				canFrame.ucData[2] = 0x00;
+			else
+				canFrame.ucData[2] = 0x01;
+			canFrame.ucData[3] = AlramCode;
+
+			CANWriteBuffer(&canFrmTxBuffer, &canFrame);	
+		}
+		AlramCodelast = AlramCode;
+	}
+}
+
+/*******************************************************************************
+* Name: CanOpenTxFrame
+* Description: Transmit buf data frame.  Called by plc per 5ms 
+* Input: none
+* Output: none
+*
+* Author: 
+* Date: 
+* Revision:
+*******************************************************************************/
+INT16S CanOpenTxFrame (void)
+{
+	tCANFrame canFrame;	//
+	tQEXPANDAGV_PDO *pQExpandAGV_PDO;
+	pQExpandAGV_PDO = &QExpandAGV_PDO;
+	
+	if(QExpandAGV_PDO.AgvMode != 1)	//PDO Tx disable
+		return 0;		
+	if ((pQExpandAGV_PDO->TxCnt & 1) == 0)//TX_PERIOD_ID1X8T
+	{
+			canFrame.ulID = (QEXPANDAGVPDOTX1_ID_OFS + QEXPANDAGVPDO_ID);
+			canFrame.ucXID=0;			//0 standard frame;  1 extended frame
+			canFrame.ucDataLength=8;	
+
+			canFrame.ucData[0] = pQExpandAGV_PDO->CanBuf_ID1X8T[0];
+			canFrame.ucData[1] = pQExpandAGV_PDO->CanBuf_ID1X8T[1];
+			canFrame.ucData[2] = pQExpandAGV_PDO->CanBuf_ID1X8T[2];
+			canFrame.ucData[3] = pQExpandAGV_PDO->CanBuf_ID1X8T[3];
+			canFrame.ucData[4] = pQExpandAGV_PDO->CanBuf_ID1X8T[4];
+			canFrame.ucData[5] = pQExpandAGV_PDO->CanBuf_ID1X8T[5];
+			canFrame.ucData[6] = pQExpandAGV_PDO->CanBuf_ID1X8T[6];
+			canFrame.ucData[7] = pQExpandAGV_PDO->CanBuf_ID1X8T[7];
+			CANWriteBuffer(&canFrmTxBuffer, &canFrame);
+	}
+	if (pQExpandAGV_PDO->TxCnt == TX_WINDOW_ID1X9T)
+	{
+			canFrame.ulID = (QEXPANDAGVPDOTX2_ID_OFS + QEXPANDAGVPDO_ID);
+			canFrame.ucXID=0;			//0 standard frame;  1 extended frame
+			canFrame.ucDataLength=8;	
+
+			canFrame.ucData[0] = pQExpandAGV_PDO->CanBuf_ID1X9T[0];
+			canFrame.ucData[1] = pQExpandAGV_PDO->CanBuf_ID1X9T[1];
+			canFrame.ucData[2] = pQExpandAGV_PDO->CanBuf_ID1X9T[2];
+			canFrame.ucData[3] = pQExpandAGV_PDO->CanBuf_ID1X9T[3];
+			canFrame.ucData[4] = pQExpandAGV_PDO->CanBuf_ID1X9T[4];
+			canFrame.ucData[5] = pQExpandAGV_PDO->CanBuf_ID1X9T[5];
+			canFrame.ucData[6] = pQExpandAGV_PDO->CanBuf_ID1X9T[6];
+			canFrame.ucData[7] = pQExpandAGV_PDO->CanBuf_ID1X9T[7];
+			CANWriteBuffer(&canFrmTxBuffer, &canFrame);
+	}
+	if (pQExpandAGV_PDO->TxCnt == TX_WINDOW_ID1XAT)
+	{
+			canFrame.ulID = (QEXPANDAGVPDOTX3_ID_OFS + QEXPANDAGVPDO_ID);
+			canFrame.ucXID=0;			//0 standard frame;  1 extended frame
+			canFrame.ucDataLength=8;	
+
+			canFrame.ucData[0] = pQExpandAGV_PDO->CanBuf_ID1XAT[0];
+			canFrame.ucData[1] = pQExpandAGV_PDO->CanBuf_ID1XAT[1];
+			canFrame.ucData[2] = pQExpandAGV_PDO->CanBuf_ID1XAT[2];
+			canFrame.ucData[3] = pQExpandAGV_PDO->CanBuf_ID1XAT[3];
+			canFrame.ucData[4] = pQExpandAGV_PDO->CanBuf_ID1XAT[4];
+			canFrame.ucData[5] = pQExpandAGV_PDO->CanBuf_ID1XAT[5];
+			canFrame.ucData[6] = pQExpandAGV_PDO->CanBuf_ID1XAT[6];
+			canFrame.ucData[7] = pQExpandAGV_PDO->CanBuf_ID1XAT[7];
+			CANWriteBuffer(&canFrmTxBuffer, &canFrame);
+	}
+	if (pQExpandAGV_PDO->TxCnt == TX_WINDOW_ID1XBT)
+	{
+			canFrame.ulID = (QEXPANDAGVPDOTX4_ID_OFS + QEXPANDAGVPDO_ID);
+			canFrame.ucXID=0;			//0 standard frame;  1 extended frame
+			canFrame.ucDataLength=8;	
+
+			canFrame.ucData[0] = pQExpandAGV_PDO->CanBuf_ID1XBT[0];
+			canFrame.ucData[1] = pQExpandAGV_PDO->CanBuf_ID1XBT[1];
+			canFrame.ucData[2] = pQExpandAGV_PDO->CanBuf_ID1XBT[2];
+			canFrame.ucData[3] = pQExpandAGV_PDO->CanBuf_ID1XBT[3];
+			canFrame.ucData[4] = pQExpandAGV_PDO->CanBuf_ID1XBT[4];
+			canFrame.ucData[5] = pQExpandAGV_PDO->CanBuf_ID1XBT[5];
+			canFrame.ucData[6] = pQExpandAGV_PDO->CanBuf_ID1XBT[6];
+			canFrame.ucData[7] = pQExpandAGV_PDO->CanBuf_ID1XBT[7];
+			CANWriteBuffer(&canFrmTxBuffer, &canFrame);
+	}
+	
+//	if(pQExpandAGV_PDO->IsInAlarm)
+		Emergency_Msg_send(pQExpandAGV_PDO->ErrorCode);
+
+	pQExpandAGV_PDO->TxCnt += 1;
+	if (pQExpandAGV_PDO->TxCnt >= TX_PERIOD)
+		pQExpandAGV_PDO->TxCnt = 0;
+	
+	return 1;
+}
+
+
+/*******************************************************************************
+* Name: CanOpenUpdatePlcDataFromRxbuf
+* Description: Update PLC data from RX bufID. 
+* Input: none
+* Output: none
+*
+* Author: 
+* Date: 
+* Revision:
+*******************************************************************************/
+INT16S CanOpenUpdatePlcDataFromRxbuf(void)
+{
+	tQEXPANDAGV_PDO *pQExpandAGV_PDO;
+	pQExpandAGV_PDO = &QExpandAGV_PDO;
+
+#if (USER_TYPE == USER_ZHONGLI)
+
+	//PDO RX1
+	pQExpandAGV_PDO->VCUControlWord = (pQExpandAGV_PDO->CanBuf_ID1X0R[7] << 8) | pQExpandAGV_PDO->CanBuf_ID1X0R[6];
+
+#else
+
+	//PDO RX1
+	pQExpandAGV_PDO->VCUControlWord = (pQExpandAGV_PDO->CanBuf_ID1X0R[1] << 8) | pQExpandAGV_PDO->CanBuf_ID1X0R[0];
+	pQExpandAGV_PDO->VCUCmdSpeed = (pQExpandAGV_PDO->CanBuf_ID1X0R[3] << 8) | pQExpandAGV_PDO->CanBuf_ID1X0R[2];
+	pQExpandAGV_PDO->VCUCmdAngle =(pQExpandAGV_PDO->CanBuf_ID1X0R[5] << 8) | pQExpandAGV_PDO->CanBuf_ID1X0R[4];
+	pQExpandAGV_PDO->VCUCmdTorque = pQExpandAGV_PDO->CanBuf_ID1X0R[6];
+	pQExpandAGV_PDO->VCUCmdTorqueBrk = pQExpandAGV_PDO->CanBuf_ID1X0R[7];
+	//PDO RX2
+	pQExpandAGV_PDO->VCUPedalBrake = pQExpandAGV_PDO->CanBuf_ID1X1R[0];
+	pQExpandAGV_PDO->VCUCmdPump = pQExpandAGV_PDO->CanBuf_ID1X1R[1];	
+	pQExpandAGV_PDO->VCUCmdEVP = pQExpandAGV_PDO->CanBuf_ID1X1R[2];
+	pQExpandAGV_PDO->VCUCmdEVP1 = pQExpandAGV_PDO->CanBuf_ID1X1R[3];	
+	return 1;	
+#endif
+}
+/*******************************************************************************
+* Name: CanOpenUpdateTxbufFromPlcData
+* Description: Update TX bufID from PLC data. 
+* Input: none
+* Output: none
+*
+* Author: 
+* Date: 
+* Revision:
+*******************************************************************************/
+INT16S CanOpenUpdateTxbufFromPlcData(void)
+{
+	tQEXPANDAGV_PDO *pQExpandAGV_PDO;
+	pQExpandAGV_PDO = &QExpandAGV_PDO;
+
+	//DATA from MCU to VCU
+	pQExpandAGV_PDO->CanBuf_ID1X8T[0] = pQExpandAGV_PDO->StateWord & 0xFF;
+	pQExpandAGV_PDO->CanBuf_ID1X8T[1] = (pQExpandAGV_PDO->StateWord >> 8) & 0xFF;
+	pQExpandAGV_PDO->CanBuf_ID1X8T[2] = (pQExpandAGV_PDO->SpeedMeasured) & 0xFF;
+	pQExpandAGV_PDO->CanBuf_ID1X8T[3] = (pQExpandAGV_PDO->SpeedMeasured >> 8) & 0xFF;
+	pQExpandAGV_PDO->CanBuf_ID1X8T[4] = (pQExpandAGV_PDO->AngleMeasured) & 0xFF;
+	pQExpandAGV_PDO->CanBuf_ID1X8T[5] = (pQExpandAGV_PDO->AngleMeasured >> 8) & 0xFF;
+	pQExpandAGV_PDO->CanBuf_ID1X8T[6] = (pQExpandAGV_PDO->CurrentMeasured) & 0xFF;
+	pQExpandAGV_PDO->CanBuf_ID1X8T[7] = (pQExpandAGV_PDO->CurrentMeasured >> 8) & 0xFF;
+	
+	pQExpandAGV_PDO->CanBuf_ID1XBT[0] = pQExpandAGV_PDO->ErrorCode;
+	pQExpandAGV_PDO->CanBuf_ID1XBT[1] = pQExpandAGV_PDO->MotorTemperature;
+	pQExpandAGV_PDO->CanBuf_ID1XBT[2] = pQExpandAGV_PDO->BoardTemperature;
+	pQExpandAGV_PDO->CanBuf_ID1XBT[3] = pQExpandAGV_PDO->BDIPercent;
+	pQExpandAGV_PDO->CanBuf_ID1XBT[4] = pQExpandAGV_PDO->AnalogInput1;
+	pQExpandAGV_PDO->CanBuf_ID1XBT[5] = pQExpandAGV_PDO->AnalogInput2;
+	pQExpandAGV_PDO->CanBuf_ID1XBT[6] = 0;
+	pQExpandAGV_PDO->CanBuf_ID1XBT[7] = pQExpandAGV_PDO->SoftwareVersion;
+
+	return 1;
+}
+
+#endif //#if (CANOPEN_TYPE == CANOPEN_QEXPAND_AGV_V04)

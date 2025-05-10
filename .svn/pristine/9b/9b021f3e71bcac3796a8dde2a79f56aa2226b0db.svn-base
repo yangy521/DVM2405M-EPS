@@ -1,0 +1,56 @@
+/*******************************************************************************
+* Filename: uartSTM32F4.h 	                                    	     		  	 *
+* Description: 							           																				*
+* Author:                                                                     *
+* Date: 															           															*
+* Revision:															           														*													 
+*******************************************************************************/
+
+#include "KSDsys.h"
+
+//#define UART_DMA_RX_ENA
+
+#define UART_BUF_NUM						64
+#define UART_DMARX_SIZE					64
+#define UART_DMATX_SIZE					64
+
+#define FRAME_RX_LEN		(10+9)	//Master ---> Slave  15 bytes
+#define FRAME_TX_LEN		(17+9)	//Slave ---> Master  19 bytes
+
+//定义UART数据收发缓冲区标识符
+#define FULL                    2
+#define EMPTY                   3
+#define NOT_FULL                4
+#define NOT_EMPTY               5
+
+#define C_NO_ERR      1
+#define C_NOACT       2
+#define C_OVERFLOW    3
+
+typedef struct _tUARTBuffer
+{
+	unsigned short ucWrite;	    	//当前写位置
+	unsigned short ucRead;	    		//当前读位置
+//	unsigned short ucBufLength;	//缓冲区数据长度
+	unsigned char ucBufferData[UART_BUF_NUM]; 
+}tUARTBuffer;
+
+extern INT8U  UART2_Tx_Done;
+extern tUARTBuffer uartRxBuffer;
+extern tUARTBuffer uartTxBuffer;
+extern INT8U g_uart1DmaRXBuf[UART_DMARX_SIZE];
+extern INT8U g_uart1DmaTXBuf[UART_DMATX_SIZE];
+extern unsigned short UARTGetBufLen(tUARTBuffer  *pBuffer);
+extern unsigned char UARTReadBuffer (tUARTBuffer  *pBuffer, unsigned char *ucByte);
+extern unsigned char UARTWriteBuffer (tUARTBuffer  *pBuffer, unsigned char  ucByte);
+
+extern unsigned char UARTWriteBufArray(tUARTBuffer *pBuffer,unsigned char *ucByteArray,unsigned short len);
+extern unsigned char UARTReadBufArray(tUARTBuffer *pBuffer,unsigned char *ucByteArray,unsigned short len);
+extern void UARTBufFlush(tUARTBuffer *pBuffer);
+extern void UARTSend (tUARTBuffer *pucBuffer);
+unsigned short UARTReadBuf_Num(void);
+extern void UARTIntHandler(void);
+extern void UART2IntHandler(void);
+extern void UART2_IntHandler(void);
+extern void UART3_IntHandler(void);
+
